@@ -117,10 +117,17 @@ public sealed class MutationTortureTests
     }
 
     [Fact]
-    public void NearDuplicateTitleCreationWarns()
+    public void NearDuplicateTitleCreationRefusesUnlessOverridden()
     {
         using var tv = new TempVault();
-        var result = tv.Ctx.Writer.CreateTask("Alpha", "Ship the v1");
+        // High-confidence near-duplicate: refused with candidates and a stable code.
+        var ex = Assert.Throws<DuplicateSuspectedException>(() =>
+            tv.Ctx.Writer.CreateTask("Alpha", "Ship the v1"));
+        Assert.Equal(ErrorCodes.DuplicateSuspected, ex.Code);
+        Assert.Contains(ex.Candidates, c => c.Contains("Ship v1", StringComparison.OrdinalIgnoreCase));
+
+        // Explicit override still creates, and the similarity stays surfaced as a warning.
+        var result = tv.Ctx.Writer.CreateTask("Alpha", "Ship the v1", allowDuplicate: true);
         Assert.Contains(result.Warnings, w => w.Contains("Ship v1", StringComparison.OrdinalIgnoreCase));
     }
 

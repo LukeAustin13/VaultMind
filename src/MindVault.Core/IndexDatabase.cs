@@ -12,10 +12,13 @@ public sealed record SearchResult(
     string Snippet, double Score, string? Section = null, string? Scope = null,
     IReadOnlyList<string>? Why = null);
 
-/// <summary>Raw FTS candidate row before ranking policy is applied.</summary>
+/// <summary>
+/// Raw FTS candidate row before ranking policy is applied. Snippets are fetched separately
+/// for the surviving page only — computing them for the whole candidate pool wastes work.
+/// </summary>
 public sealed record SearchCandidate(
     long Id, string Title, string Path, string? Type, string? Project, string? Status,
-    string? Updated, string Snippet, double Bm25);
+    string? Updated, double Bm25);
 
 public sealed record FrontmatterValueRow(long NoteId, string NotePath, string Value);
 
@@ -37,6 +40,9 @@ public sealed class IndexDatabase : IDisposable
     private readonly SqliteConnection _conn;
     private readonly object _lock = new();
 
+    /// <summary>Ambient transaction for bulk operations (scans); see <see cref="BeginBulk"/>.</summary>
+    private SqliteTransaction? _bulk;
+
     /// <summary>True when the schema was reset (new version); the caller must run a scan to repopulate.</summary>
     public bool NeedsRescan { get; private set; }
 
@@ -51,6 +57,10 @@ public sealed class IndexDatabase : IDisposable
         }.ToString());
         _conn.Open();
         Exec("PRAGMA journal_mode=WAL;");
+        // The index is disposable cache (Markdown is canonical), so NORMAL durability is the
+        // right trade: no corruption risk under WAL, and commits stop fsync-ing — which is the
+        // difference between seconds and minutes for a cold scan on Raspberry Pi SD storage.
+        Exec("PRAGMA synchronous=NORMAL;");
 
         var version = Convert.ToInt64(Scalar("PRAGMA user_version;"));
         if (version != CurrentSchemaVersion)
@@ -121,78 +131,148 @@ public sealed class IndexDatabase : IDisposable
         }
     }
 
+    /// <summary>
+    /// Groups many upserts/deletes into ONE SQLite transaction (one commit instead of one per
+    /// note — the difference between a scan being CPU-bound and being fsync-bound). Commands
+    /// issued while the scope is open automatically join the transaction; disposing commits.
+    /// Partial commit on failure is safe: per-note writes are atomic (each note's rows are
+    /// written under the same lock hold), matching the old per-note-commit semantics.
+    /// </summary>
+    public IDisposable BeginBulk()
+    {
+        lock (_lock)
+        {
+            if (_bulk is not null)
+                throw new InvalidOperationException("A bulk scope is already open.");
+            _bulk = _conn.BeginTransaction();
+        }
+        return new BulkScope(this);
+    }
+
+    private void EndBulk()
+    {
+        lock (_lock)
+        {
+            if (_bulk is null) return;
+            try
+            {
+                _bulk.Commit();
+            }
+            finally
+            {
+                _bulk.Dispose();
+                _bulk = null;
+            }
+        }
+    }
+
+    private sealed class BulkScope(IndexDatabase owner) : IDisposable
+    {
+        private bool _done;
+
+        public void Dispose()
+        {
+            if (_done) return;
+            _done = true;
+            owner.EndBulk();
+        }
+    }
+
     public long UpsertNote(ParsedNote note)
     {
         lock (_lock)
         {
-            using var tx = _conn.BeginTransaction();
-            long id;
-            using (var find = Cmd("SELECT id FROM notes WHERE path = $path", tx))
+            // Join an open bulk scope instead of nesting a transaction inside it.
+            var ownTx = _bulk is null ? _conn.BeginTransaction() : null;
+            var tx = ownTx ?? _bulk!;
+            try
             {
-                find.Parameters.AddWithValue("$path", note.RelativePath);
-                var existing = find.ExecuteScalar();
-                id = existing is null ? 0 : (long)existing;
+                var id = UpsertNoteCore(note, tx);
+                ownTx?.Commit();
+                return id;
             }
-
-            if (id == 0)
+            finally
             {
-                using var insert = Cmd("""
-                    INSERT INTO notes(path, title, stem, slug, type, status, project, created, updated,
-                                      body_hash, modified_ticks, file_size, has_frontmatter, parse_error)
-                    VALUES($path, $title, $stem, $slug, $type, $status, $project, $created, $updated,
-                           $hash, $ticks, $size, $hasfm, $err);
-                    SELECT last_insert_rowid();
-                    """, tx);
-                AddNoteParams(insert, note);
-                id = (long)insert.ExecuteScalar()!;
+                ownTx?.Dispose();
             }
-            else
-            {
-                using var update = Cmd("""
-                    UPDATE notes SET title=$title, stem=$stem, slug=$slug, type=$type, status=$status,
-                           project=$project, created=$created, updated=$updated, body_hash=$hash,
-                           modified_ticks=$ticks, file_size=$size, has_frontmatter=$hasfm, parse_error=$err
-                    WHERE path=$path
-                    """, tx);
-                AddNoteParams(update, note);
-                update.ExecuteNonQuery();
-                DeleteChildren(id, tx);
-            }
-
-            foreach (var tag in note.Tags)
-                ExecTx(tx, "INSERT INTO note_tags(note_id, tag) VALUES($id, $tag)",
-                    ("$id", id), ("$tag", tag));
-            foreach (var link in note.Links)
-                ExecTx(tx, "INSERT INTO note_links(note_id, target, target_norm) VALUES($id, $t, $n)",
-                    ("$id", id), ("$t", link.Target), ("$n", link.TargetNorm));
-            foreach (var heading in note.Headings)
-                ExecTx(tx, "INSERT INTO note_headings(note_id, level, heading, line) VALUES($id, $l, $h, $line)",
-                    ("$id", id), ("$l", heading.Level), ("$h", heading.Text), ("$line", heading.Line));
-            foreach (var entry in note.FrontmatterEntries)
-                ExecTx(tx, "INSERT INTO note_frontmatter(note_id, key, value) VALUES($id, $k, $v)",
-                    ("$id", id), ("$k", entry.Key.ToLowerInvariant()),
-                    ("$v", entry.IsList ? Json.Serialize(entry.Items) : entry.Scalar ?? ""));
-            ExecTx(tx, "INSERT INTO fts_notes(title, body, note_id) VALUES($t, $b, $id)",
-                ("$t", note.Title), ("$b", note.Body), ("$id", id.ToString()));
-
-            tx.Commit();
-            return id;
         }
+    }
+
+    private long UpsertNoteCore(ParsedNote note, SqliteTransaction tx)
+    {
+        long id;
+        using (var find = Cmd("SELECT id FROM notes WHERE path = $path", tx))
+        {
+            find.Parameters.AddWithValue("$path", note.RelativePath);
+            var existing = find.ExecuteScalar();
+            id = existing is null ? 0 : (long)existing;
+        }
+
+        if (id == 0)
+        {
+            using var insert = Cmd("""
+                INSERT INTO notes(path, title, stem, slug, type, status, project, created, updated,
+                                  body_hash, modified_ticks, file_size, has_frontmatter, parse_error)
+                VALUES($path, $title, $stem, $slug, $type, $status, $project, $created, $updated,
+                       $hash, $ticks, $size, $hasfm, $err);
+                SELECT last_insert_rowid();
+                """, tx);
+            AddNoteParams(insert, note);
+            id = (long)insert.ExecuteScalar()!;
+        }
+        else
+        {
+            using var update = Cmd("""
+                UPDATE notes SET title=$title, stem=$stem, slug=$slug, type=$type, status=$status,
+                       project=$project, created=$created, updated=$updated, body_hash=$hash,
+                       modified_ticks=$ticks, file_size=$size, has_frontmatter=$hasfm, parse_error=$err
+                WHERE path=$path
+                """, tx);
+            AddNoteParams(update, note);
+            update.ExecuteNonQuery();
+            DeleteChildren(id, tx);
+        }
+
+        foreach (var tag in note.Tags)
+            ExecTx(tx, "INSERT INTO note_tags(note_id, tag) VALUES($id, $tag)",
+                ("$id", id), ("$tag", tag));
+        foreach (var link in note.Links)
+            ExecTx(tx, "INSERT INTO note_links(note_id, target, target_norm) VALUES($id, $t, $n)",
+                ("$id", id), ("$t", link.Target), ("$n", link.TargetNorm));
+        foreach (var heading in note.Headings)
+            ExecTx(tx, "INSERT INTO note_headings(note_id, level, heading, line) VALUES($id, $l, $h, $line)",
+                ("$id", id), ("$l", heading.Level), ("$h", heading.Text), ("$line", heading.Line));
+        foreach (var entry in note.FrontmatterEntries)
+            ExecTx(tx, "INSERT INTO note_frontmatter(note_id, key, value) VALUES($id, $k, $v)",
+                ("$id", id), ("$k", entry.Key.ToLowerInvariant()),
+                ("$v", entry.IsList ? Json.Serialize(entry.Items) : entry.Scalar ?? ""));
+        ExecTx(tx, "INSERT INTO fts_notes(title, body, note_id) VALUES($t, $b, $id)",
+            ("$t", note.Title), ("$b", note.Body), ("$id", id.ToString()));
+
+        return id;
     }
 
     public void DeleteNoteByPath(string relativePath)
     {
         lock (_lock)
         {
-            using var tx = _conn.BeginTransaction();
-            using var find = Cmd("SELECT id FROM notes WHERE path = $path", tx);
-            find.Parameters.AddWithValue("$path", relativePath);
-            if (find.ExecuteScalar() is long id)
+            var ownTx = _bulk is null ? _conn.BeginTransaction() : null;
+            var tx = ownTx ?? _bulk!;
+            try
             {
-                DeleteChildren(id, tx);
-                ExecTx(tx, "DELETE FROM notes WHERE id = $id", ("$id", id));
+                using var find = Cmd("SELECT id FROM notes WHERE path = $path", tx);
+                find.Parameters.AddWithValue("$path", relativePath);
+                if (find.ExecuteScalar() is long id)
+                {
+                    DeleteChildren(id, tx);
+                    ExecTx(tx, "DELETE FROM notes WHERE id = $id", ("$id", id));
+                }
+                ownTx?.Commit();
             }
-            tx.Commit();
+            finally
+            {
+                ownTx?.Dispose();
+            }
         }
     }
 
@@ -265,7 +345,7 @@ public sealed class IndexDatabase : IDisposable
     public List<NoteSummary> FindProjects(string name) =>
         QueryMany("""
             SELECT * FROM notes
-            WHERE lower(type) = 'project'
+            WHERE type = 'project'
               AND (title = $v COLLATE NOCASE OR stem = $v COLLATE NOCASE)
               AND path NOT LIKE '08!_Templates/%' ESCAPE '!'
             ORDER BY path
@@ -287,35 +367,38 @@ public sealed class IndexDatabase : IDisposable
     {
         lock (_lock)
         {
+            // Predicates are written to stay sargable: `type` is stored lowercased (compare to a
+            // lowered constant) and `project` compares under COLLATE NOCASE, so the planner can
+            // use idx_notes_type / idx_notes_project instead of scanning the whole table.
             var sql = "SELECT * FROM notes WHERE 1=1";
-            using var cmd = _conn.CreateCommand();
+            using var cmd = Cmd("");
             if (type is not null)
             {
-                sql += " AND lower(type) = lower($type)";
+                sql += " AND type = lower($type)";
                 cmd.Parameters.AddWithValue("$type", type);
             }
             if (projectNames is { Length: > 0 })
             {
-                var names = projectNames.Select((p, i) => $"lower($proj{i})").ToArray();
-                sql += $" AND lower(project) IN ({string.Join(", ", names)})";
+                var names = projectNames.Select((p, i) => $"$proj{i}").ToArray();
+                sql += $" AND project COLLATE NOCASE IN ({string.Join(", ", names)})";
                 for (var i = 0; i < projectNames.Length; i++)
                     cmd.Parameters.AddWithValue($"$proj{i}", projectNames[i]);
             }
             if (statusIn is { Length: > 0 })
             {
-                var names = statusIn.Select((s, i) => $"lower($st{i})").ToArray();
-                sql += $" AND lower(status) IN ({string.Join(", ", names)})";
+                var names = statusIn.Select((s, i) => $"$st{i}").ToArray();
+                sql += $" AND status COLLATE NOCASE IN ({string.Join(", ", names)})";
                 for (var i = 0; i < statusIn.Length; i++)
                     cmd.Parameters.AddWithValue($"$st{i}", statusIn[i]);
             }
             if (statusNot is not null)
             {
-                sql += " AND (status IS NULL OR lower(status) != lower($stnot))";
+                sql += " AND (status IS NULL OR status COLLATE NOCASE != $stnot)";
                 cmd.Parameters.AddWithValue("$stnot", statusNot);
             }
             if (tag is not null)
             {
-                sql += " AND EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = notes.id AND lower(t.tag) = lower($tag))";
+                sql += " AND EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = notes.id AND t.tag COLLATE NOCASE = $tag)";
                 cmd.Parameters.AddWithValue("$tag", tag);
             }
             if (excludeId is not null)
@@ -333,10 +416,11 @@ public sealed class IndexDatabase : IDisposable
     /// <summary>
     /// FTS candidate fetch with title-weighted bm25 (title x4, body x1). Ranking policy
     /// (recency, archived penalty, title/exact boosts) lives in SearchService; this returns
-    /// the raw candidate pool.
+    /// the raw candidate pool WITHOUT snippets — fetch those for the surviving page via
+    /// <see cref="GetSnippets"/> using the returned effective match string.
     /// </summary>
-    public List<SearchCandidate> SearchCandidates(string query, string? type = null,
-        string? project = null, string? tag = null, string? status = null,
+    public (List<SearchCandidate> Candidates, string Match) SearchCandidates(string query,
+        string? type = null, string? project = null, string? tag = null, string? status = null,
         string? updatedAfter = null, string? updatedBefore = null,
         bool includeArchived = false, string archiveFolder = "99_Archive", int limit = 40)
     {
@@ -344,16 +428,39 @@ public sealed class IndexDatabase : IDisposable
         {
             try
             {
-                return SearchCandidatesFts(query, type, project, tag, status,
-                    updatedAfter, updatedBefore, includeArchived, archiveFolder, limit);
+                return (SearchCandidatesFts(query, type, project, tag, status,
+                    updatedAfter, updatedBefore, includeArchived, archiveFolder, limit), query);
             }
             catch (SqliteException)
             {
                 // User text was not valid FTS5 syntax; retry as a quoted phrase.
                 var quoted = "\"" + query.Replace("\"", "\"\"") + "\"";
-                return SearchCandidatesFts(quoted, type, project, tag, status,
-                    updatedAfter, updatedBefore, includeArchived, archiveFolder, limit);
+                return (SearchCandidatesFts(quoted, type, project, tag, status,
+                    updatedAfter, updatedBefore, includeArchived, archiveFolder, limit), quoted);
             }
+        }
+    }
+
+    /// <summary>Highlighted snippets for specific notes under an FTS match — page-sized, not pool-sized.</summary>
+    public Dictionary<long, string> GetSnippets(string match, IReadOnlyCollection<long> noteIds)
+    {
+        lock (_lock)
+        {
+            var result = new Dictionary<long, string>();
+            if (noteIds.Count == 0) return result;
+            using var cmd = Cmd("");
+            var names = noteIds.Select((_, i) => $"$id{i}").ToArray();
+            cmd.CommandText =
+                "SELECT CAST(note_id AS INTEGER), snippet(fts_notes, 1, '**', '**', ' … ', 12) " +
+                $"FROM fts_notes WHERE fts_notes MATCH $q AND note_id IN ({string.Join(", ", names)})";
+            cmd.Parameters.AddWithValue("$q", match);
+            var i = 0;
+            foreach (var id in noteIds)
+                cmd.Parameters.AddWithValue($"$id{i++}", id.ToString());
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                result[reader.GetInt64(0)] = reader.IsDBNull(1) ? "" : reader.GetString(1);
+            return result;
         }
     }
 
@@ -363,21 +470,20 @@ public sealed class IndexDatabase : IDisposable
     {
         var sql = """
             SELECT n.id, n.title, n.path, n.type, n.project, n.status, n.updated,
-                   snippet(fts_notes, 1, '**', '**', ' … ', 12) AS snip,
                    bm25(fts_notes, 4.0, 1.0, 0.0) AS score
             FROM fts_notes
             JOIN notes n ON n.id = CAST(fts_notes.note_id AS INTEGER)
             WHERE fts_notes MATCH $q
               AND n.path NOT LIKE '08!_Templates/%' ESCAPE '!'
             """;
-        using var cmd = _conn.CreateCommand();
+        using var cmd = Cmd("");
         cmd.Parameters.AddWithValue("$q", match);
-        if (type is not null) { sql += " AND lower(n.type) = lower($type)"; cmd.Parameters.AddWithValue("$type", type); }
-        if (project is not null) { sql += " AND lower(n.project) = lower($proj)"; cmd.Parameters.AddWithValue("$proj", project); }
-        if (status is not null) { sql += " AND lower(n.status) = lower($status)"; cmd.Parameters.AddWithValue("$status", status); }
+        if (type is not null) { sql += " AND n.type = lower($type)"; cmd.Parameters.AddWithValue("$type", type); }
+        if (project is not null) { sql += " AND n.project COLLATE NOCASE = $proj"; cmd.Parameters.AddWithValue("$proj", project); }
+        if (status is not null) { sql += " AND n.status COLLATE NOCASE = $status"; cmd.Parameters.AddWithValue("$status", status); }
         if (tag is not null)
         {
-            sql += " AND EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = n.id AND lower(t.tag) = lower($tag))";
+            sql += " AND EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = n.id AND t.tag COLLATE NOCASE = $tag)";
             cmd.Parameters.AddWithValue("$tag", tag);
         }
         if (updatedAfter is not null) { sql += " AND n.updated >= $ua"; cmd.Parameters.AddWithValue("$ua", updatedAfter); }
@@ -401,8 +507,7 @@ public sealed class IndexDatabase : IDisposable
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.IsDBNull(5) ? null : reader.GetString(5),
                 reader.IsDBNull(6) ? null : reader.GetString(6),
-                reader.IsDBNull(7) ? "" : reader.GetString(7),
-                reader.IsDBNull(8) ? 0 : reader.GetDouble(8)));
+                reader.IsDBNull(7) ? 0 : reader.GetDouble(7)));
         }
         return results;
     }
@@ -451,6 +556,29 @@ public sealed class IndexDatabase : IDisposable
         }
     }
 
+    /// <summary>
+    /// (note_id, key, value) rows for alias-bearing frontmatter keys of project notes.
+    /// Values are raw as indexed: JSON arrays for YAML lists, plain text for scalars.
+    /// </summary>
+    public List<(long NoteId, string Key, string Value)> GetProjectAliasRows()
+    {
+        lock (_lock)
+        {
+            var result = new List<(long, string, string)>();
+            using var cmd = Cmd("""
+                SELECT f.note_id, f.key, f.value FROM note_frontmatter f
+                JOIN notes n ON n.id = f.note_id
+                WHERE n.type = 'project'
+                  AND f.key IN ('aliases', 'reponames')
+                  AND n.path NOT LIKE '08!_Templates/%' ESCAPE '!'
+                """);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                result.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2)));
+            return result;
+        }
+    }
+
     public List<(string Path, long Size)> GetLargeNotes(long minBytes)
     {
         lock (_lock)
@@ -474,6 +602,60 @@ public sealed class IndexDatabase : IDisposable
             cmd.Parameters.AddWithValue("$k", key.ToLowerInvariant());
             using var reader = cmd.ExecuteReader();
             while (reader.Read()) result.Add(reader.GetInt64(0));
+            return result;
+        }
+    }
+
+    /// <summary>Presence sets for several frontmatter keys in one round trip (validation hot path).</summary>
+    public Dictionary<string, HashSet<long>> GetFrontmatterKeyPresence(IReadOnlyList<string> keys)
+    {
+        lock (_lock)
+        {
+            var result = keys.ToDictionary(k => k, _ => new HashSet<long>(), StringComparer.OrdinalIgnoreCase);
+            if (keys.Count == 0) return result;
+            using var cmd = Cmd("");
+            var names = keys.Select((_, i) => $"$k{i}").ToArray();
+            cmd.CommandText = $"SELECT key, note_id FROM note_frontmatter WHERE key IN ({string.Join(", ", names)})";
+            for (var i = 0; i < keys.Count; i++)
+                cmd.Parameters.AddWithValue($"$k{i}", keys[i].ToLowerInvariant());
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                if (result.TryGetValue(reader.GetString(0), out var set))
+                    set.Add(reader.GetInt64(1));
+            }
+            return result;
+        }
+    }
+
+    /// <summary>Outgoing links of one note (indexed by note_id) — avoids loading the whole link table.</summary>
+    public List<NoteLinkRow> GetLinksFor(long noteId)
+    {
+        lock (_lock)
+        {
+            var result = new List<NoteLinkRow>();
+            using var cmd = Cmd("""
+                SELECT l.note_id, n.path, l.target, l.target_norm FROM note_links l
+                JOIN notes n ON n.id = l.note_id
+                WHERE l.note_id = $id
+                """);
+            cmd.Parameters.AddWithValue("$id", noteId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                result.Add(new NoteLinkRow(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+            return result;
+        }
+    }
+
+    /// <summary>Just (title, stem) for every note — link-resolution needs nothing heavier.</summary>
+    public List<(string Title, string Stem)> GetAllTitleStems()
+    {
+        lock (_lock)
+        {
+            var result = new List<(string, string)>();
+            using var cmd = Cmd("SELECT title, stem FROM notes");
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read()) result.Add((reader.GetString(0), reader.GetString(1)));
             return result;
         }
     }
@@ -576,7 +758,9 @@ public sealed class IndexDatabase : IDisposable
     {
         var cmd = _conn.CreateCommand();
         cmd.CommandText = sql;
-        cmd.Transaction = tx;
+        // While a bulk scope is open, every command on this connection must join its
+        // transaction (Microsoft.Data.Sqlite refuses transaction-less commands otherwise).
+        cmd.Transaction = tx ?? _bulk;
         return cmd;
     }
 

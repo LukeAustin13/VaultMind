@@ -77,6 +77,8 @@ public static class CliRunner
                 "backup" => CmdBackup(ctx, infoOut, json),
                 "prune" => CmdPrune(ctx, args, infoOut, json),
                 "project-context" => CmdProjectContext(ctx, args, stdout),
+                "detect-project" => CmdDetectProject(ctx, args, stdout, json),
+                "related" => CmdRelated(ctx, args, stdout, json),
                 "context" => CmdContext(ctx, args, stdout, json),
                 "context-pack" => CmdContextPack(ctx, args, stdout, json),
                 "check-note" => CmdCheckNote(ctx, args, stdout, json),
@@ -92,6 +94,21 @@ public static class CliRunner
         catch (AmbiguousNoteRefException ex)
         {
             return Fail(ex.Message, ex.Code, stdout, stderr, json, 3);
+        }
+        catch (DuplicateSuspectedException ex)
+        {
+            if (json)
+            {
+                stdout.WriteLine(Json.Serialize(new
+                {
+                    ok = false, created = false, reason = "possible_duplicate",
+                    error = ex.Message, code = ex.Code, candidates = ex.Candidates,
+                }));
+                return 2;
+            }
+            stderr.WriteLine(ex.Message);
+            stderr.WriteLine("Pass --allow-duplicate to create it anyway.");
+            return 2;
         }
         catch (MindVaultException ex)
         {
@@ -337,11 +354,19 @@ public static class CliRunner
         var r = ctx.Doctor.Run();
         if (json)
         {
-            stdout.WriteLine(Json.Serialize(new { ok = r.Warnings.Count == 0, report = r }));
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = r.Verdict != "critical",
+                health = r.Verdict,
+                healthReasons = r.VerdictReasons,
+                report = r,
+            }));
         }
         else
         {
             stdout.WriteLine($"MindVault doctor (v{r.AppVersion})");
+            stdout.WriteLine($"  health:           {r.Verdict.ToUpperInvariant()}" +
+                             (r.VerdictReasons is { Count: > 0 } ? $" — {r.VerdictReasons[0]}" : ""));
             stdout.WriteLine($"  vault path:       {r.VaultPath}");
             stdout.WriteLine($"  vault writable:   {r.VaultWritable}");
             stdout.WriteLine($"  config source:    {r.ConfigSource}");
@@ -472,12 +497,13 @@ public static class CliRunner
         if (args.Positionals.Count < 2)
             throw new MindVaultException("Usage: create project \"<name>\" | create decision --project \"<p>\" --title \"<t>\" | create task --project \"<p>\" --title \"<t>\"");
         var kind = args.Positionals[1].ToLowerInvariant();
+        var allowDuplicate = args.Has("allow-duplicate");
         var result = kind switch
         {
             "project" => ctx.Writer.CreateProject(
-                args.Positionals.Count > 2 ? args.Positionals[2] : args.Require("name")),
-            "decision" => ctx.Writer.CreateDecision(args.Require("project"), args.Require("title")),
-            "task" => ctx.Writer.CreateTask(args.Require("project"), args.Require("title")),
+                args.Positionals.Count > 2 ? args.Positionals[2] : args.Require("name"), allowDuplicate),
+            "decision" => ctx.Writer.CreateDecision(args.Require("project"), args.Require("title"), allowDuplicate),
+            "task" => ctx.Writer.CreateTask(args.Require("project"), args.Require("title"), allowDuplicate),
             _ => throw new MindVaultException($"Unknown create target: '{kind}'. Use project, decision or task."),
         };
         var note = result.Note;
@@ -515,17 +541,27 @@ public static class CliRunner
             content = File.ReadAllText(path);
         }
 
-        var result = ctx.Writer.AppendToSection(noteRef, section, content!, args.Has("create-section"));
-        if (json) stdout.WriteLine(Json.Serialize(new { ok = true, path = result.Path, snapshot = result.SnapshotPath }));
-        else stdout.WriteLine($"{result.Message} (snapshot: {result.SnapshotPath})");
+        var result = ctx.Writer.AppendToSection(noteRef, section, content!, args.Has("create-section"),
+            args.Has("dry-run"));
+        if (json) stdout.WriteLine(Json.Serialize(new
+        {
+            ok = true, dryRun = args.Has("dry-run"), path = result.Path,
+            snapshot = result.SnapshotPath, message = result.Message,
+        }));
+        else stdout.WriteLine(result.SnapshotPath is null ? result.Message : $"{result.Message} (snapshot: {result.SnapshotPath})");
         return 0;
     }
 
     private static int CmdUpdateFrontmatter(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
     {
-        var result = ctx.Writer.UpdateFrontmatter(args.Require("note"), args.Require("key"), args.Require("value"));
-        if (json) stdout.WriteLine(Json.Serialize(new { ok = true, path = result.Path, snapshot = result.SnapshotPath }));
-        else stdout.WriteLine($"{result.Message} (snapshot: {result.SnapshotPath})");
+        var result = ctx.Writer.UpdateFrontmatter(args.Require("note"), args.Require("key"), args.Require("value"),
+            args.Has("dry-run"));
+        if (json) stdout.WriteLine(Json.Serialize(new
+        {
+            ok = true, dryRun = args.Has("dry-run"), path = result.Path,
+            snapshot = result.SnapshotPath, message = result.Message,
+        }));
+        else stdout.WriteLine(result.SnapshotPath is null ? result.Message : $"{result.Message} (snapshot: {result.SnapshotPath})");
         return 0;
     }
 
@@ -541,15 +577,20 @@ public static class CliRunner
     {
         var noteRef = args.Positionals.Count > 1 ? args.Positionals[1] : args.Opt("note");
         if (string.IsNullOrWhiteSpace(noteRef))
-            throw new MindVaultException("Usage: archive \"<note-ref>\"");
-        var result = ctx.Writer.Archive(noteRef);
+            throw new MindVaultException("Usage: archive \"<note-ref>\" [--dry-run]");
+        var dryRun = args.Has("dry-run");
+        var result = ctx.Writer.Archive(noteRef, dryRun);
         if (json)
         {
             stdout.WriteLine(Json.Serialize(new
             {
-                ok = true, from = result.FromPath, to = result.ToPath,
+                ok = true, dryRun, from = result.FromPath, to = result.ToPath,
                 snapshot = result.SnapshotPath, warnings = result.Warnings,
             }));
+        }
+        else if (dryRun)
+        {
+            foreach (var w in result.Warnings) stdout.WriteLine(w);
         }
         else
         {
@@ -604,6 +645,66 @@ public static class CliRunner
             throw new MindVaultException("Usage: project-context \"<project>\" [--limit n]");
         var result = ctx.Projects.Get(args.Positionals[1], args.IntOpt("limit", 10));
         stdout.WriteLine(Json.Serialize(result));
+        return 0;
+    }
+
+    private static int CmdDetectProject(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        // Default input is the current directory name — exactly what a coding agent has.
+        var name = args.Positionals.Count > 1
+            ? args.Positionals[1]
+            : Path.GetFileName(Environment.CurrentDirectory.TrimEnd(Path.DirectorySeparatorChar));
+        var d = ctx.ProjectDetect.Detect(name);
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = true,
+                input = name,
+                project = d.Project?.Title,
+                path = d.Project?.Path,
+                confidence = d.Confidence,
+                matchedVia = d.MatchedVia,
+                candidates = d.Candidates,
+            }));
+            return 0;
+        }
+        if (d.Project is not null)
+        {
+            stdout.WriteLine($"{d.Project.Title}  ({d.Project.Path})");
+            stdout.WriteLine($"  confidence: {d.Confidence} (via {d.MatchedVia})");
+            return 0;
+        }
+        stdout.WriteLine(d.Ambiguous
+            ? $"'{name}' is ambiguous between {d.Candidates.Count} projects:"
+            : d.Candidates.Count > 0
+                ? $"no confident match for '{name}'; closest:"
+                : $"no project matches '{name}'");
+        foreach (var c in d.Candidates)
+            stdout.WriteLine($"  {c.Title}  ({c.Path}) via {c.MatchedVia}");
+        return d.Project is null && d.Candidates.Count == 0 ? 1 : 0;
+    }
+
+    private static int CmdRelated(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var noteRef = args.Positionals.Count > 1 ? args.Positionals[1] : args.Opt("note");
+        if (string.IsNullOrWhiteSpace(noteRef))
+            throw new MindVaultException("Usage: related \"<note-ref>\" [--limit n] [--json]");
+        var result = ctx.Related.Get(noteRef, args.IntOpt("limit", RelatedNotesService.DefaultLimit));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new { ok = true, result.Title, result.Path, related = result.Related }));
+        }
+        else if (result.Related.Count == 0)
+        {
+            stdout.WriteLine($"no related notes found for {result.Path}");
+        }
+        else
+        {
+            stdout.WriteLine($"related to {result.Title} ({result.Path}):");
+            foreach (var r in result.Related)
+                stdout.WriteLine($"  {r.Type ?? "-",-12} {r.Title}  ({r.Path}) — {r.Reason}");
+        }
         return 0;
     }
 
@@ -680,6 +781,7 @@ public static class CliRunner
             {
                 ok = result.Ok, blockers = result.Blockers, warnings = result.Warnings,
                 suggestions = result.Suggestions, relatedPaths = result.RelatedPaths,
+                likelyDuplicatePaths = result.LikelyDuplicatePaths,
             }));
         }
         else
@@ -834,7 +936,9 @@ public static class CliRunner
           rebuild-index                            clear and rebuild the SQLite index
           index status|verify|rebuild              index health: report, drift check, rebuild
           validate                                 report vault problems (critical/warning/info)
-          doctor                                   report system health (config, writability, Docker, MCP env)
+          doctor                                   health verdict + system report (config, writability, Docker, MCP env)
+          detect-project ["<name>"]                map a repo/folder name to a vault project (aliases, repoNames)
+          related "<note-ref>" [--limit n]         links, backlinks and related notes with reasons
           search "<query>" [--type --project --tag --status --limit
                             --updated-after --updated-before --include-archived --explain]
           read "<note-ref>"                        print a note (path, title, slug or [[link]])
@@ -852,13 +956,15 @@ public static class CliRunner
           session log --project p --summary s      mid-session breadcrumb (use sparingly)
           session end --project p --summary s [--tests t] [--followups f]
                                                    concise handoff entry for the next session
-          create project "<name>"
-          create decision --project "<p>" --title "<t>"
-          create task --project "<p>" --title "<t>"
-          append --note "<ref>" --section "<heading>" (--content "<text>" | --content-file <path>) [--create-section]
-          update-frontmatter --note "<ref>" --key "<key>" --value "<value>"
+          create project "<name>" [--allow-duplicate]
+          create decision --project "<p>" --title "<t>" [--allow-duplicate]
+          create task --project "<p>" --title "<t>" [--allow-duplicate]
+                                                   creates REFUSE likely duplicates unless --allow-duplicate
+          append --note "<ref>" --section "<heading>" (--content "<text>" | --content-file <path>)
+                 [--create-section] [--dry-run]
+          update-frontmatter --note "<ref>" --key "<key>" --value "<value>" [--dry-run]
           link --from "<ref>" --to "<ref>"
-          archive "<note-ref>"                     snapshot, mark archived and move to 99_Archive
+          archive "<note-ref>" [--dry-run]         snapshot, mark archived and move to 99_Archive
           restore "<note-ref>" [--snapshot <path>] restore a note from its newest (or given) snapshot
           backup                                   zip all vault Markdown into .mindvault/backups
           prune [--days n]                         delete snapshots older than the retention window

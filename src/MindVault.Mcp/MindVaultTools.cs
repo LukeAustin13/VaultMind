@@ -100,48 +100,53 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_create_project", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Create a new project note in 01_Projects with valid frontmatter and the standard section skeleton.")]
+    [Description("Create a new project note in 01_Projects with valid frontmatter and the standard section skeleton. Refuses names that already resolve to an existing project (including via alias) unless allowDuplicate is true.")]
     public string CreateProject(
-        [Description("Project name (also becomes the file name)")] string name) =>
-        Safe(() => Created(ctx.Writer.CreateProject(name)));
+        [Description("Project name (also becomes the file name)")] string name,
+        [Description("Create even if a very similar project exists (default false)")] bool allowDuplicate = false) =>
+        Safe(() => Created(ctx.Writer.CreateProject(name, allowDuplicate)));
 
     [McpServerTool(Name = "mindvault_create_decision", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Create a decision note in 04_Decisions, linked to an existing project. Fails if the project note does not exist.")]
+    [Description("Create a decision note in 04_Decisions, linked to an existing project (aliases resolve). Fails if the project note does not exist; refuses near-duplicate titles unless allowDuplicate is true — update or supersede the existing decision instead.")]
     public string CreateDecision(
-        [Description("Existing project name")] string project,
-        [Description("Decision title")] string title) =>
-        Safe(() => Created(ctx.Writer.CreateDecision(project, title)));
+        [Description("Existing project name (alias or repo name also works)")] string project,
+        [Description("Decision title")] string title,
+        [Description("Create even if a very similar decision exists (default false)")] bool allowDuplicate = false) =>
+        Safe(() => Created(ctx.Writer.CreateDecision(project, title, allowDuplicate)));
 
     [McpServerTool(Name = "mindvault_create_task", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Create a task note linked to an existing project. Fails if the project note does not exist.")]
+    [Description("Create a task note linked to an existing project (aliases resolve). Fails if the project note does not exist; refuses near-duplicate titles unless allowDuplicate is true — update the existing task instead.")]
     public string CreateTask(
-        [Description("Existing project name")] string project,
-        [Description("Task title")] string title) =>
-        Safe(() => Created(ctx.Writer.CreateTask(project, title)));
+        [Description("Existing project name (alias or repo name also works)")] string project,
+        [Description("Task title")] string title,
+        [Description("Create even if a very similar task exists (default false)")] bool allowDuplicate = false) =>
+        Safe(() => Created(ctx.Writer.CreateTask(project, title, allowDuplicate)));
 
     [McpServerTool(Name = "mindvault_append_to_note", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Append content under an existing heading of a note. Snapshots the note first. Errors if the heading is missing unless createSection is true.")]
+    [Description("Append content under an existing heading of a note. Snapshots the note first. Errors if the heading is missing unless createSection is true. Pass dryRun to preview without writing.")]
     public string AppendToNote(
         [Description("Note reference: path, title, filename or [[wiki link]]")] string noteRef,
         [Description("Heading text to append under (without # markers)")] string section,
         [Description("Markdown content to append")] string content,
-        [Description("Create the section at the end of the note when missing")] bool createSection = false) =>
+        [Description("Create the section at the end of the note when missing")] bool createSection = false,
+        [Description("Preview only — report what would happen, change nothing")] bool dryRun = false) =>
         Safe(() =>
         {
-            var result = ctx.Writer.AppendToSection(noteRef, section, content, createSection);
-            return new { path = result.Path, message = result.Message, snapshot = result.SnapshotPath };
+            var result = ctx.Writer.AppendToSection(noteRef, section, content, createSection, dryRun);
+            return new { dryRun, path = result.Path, message = result.Message, snapshot = result.SnapshotPath };
         });
 
     [McpServerTool(Name = "mindvault_update_frontmatter", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Set one flat frontmatter key on a note (e.g. status). Nested YAML values are rejected. For tags/links pass a comma-separated list. Snapshots first.")]
+    [Description("Set one flat frontmatter key on a note (e.g. status). Nested YAML values are rejected. For tags/links pass a comma-separated list. Snapshots first. Pass dryRun to preview the old -> new value without writing.")]
     public string UpdateFrontmatter(
         [Description("Note reference")] string noteRef,
         [Description("Frontmatter key, e.g. status")] string key,
-        [Description("New scalar value (comma-separated list for tags/links)")] string value) =>
+        [Description("New scalar value (comma-separated list for tags/links)")] string value,
+        [Description("Preview only — report what would happen, change nothing")] bool dryRun = false) =>
         Safe(() =>
         {
-            var result = ctx.Writer.UpdateFrontmatter(noteRef, key, value);
-            return new { path = result.Path, message = result.Message, snapshot = result.SnapshotPath };
+            var result = ctx.Writer.UpdateFrontmatter(noteRef, key, value, dryRun);
+            return new { dryRun, path = result.Path, message = result.Message, snapshot = result.SnapshotPath };
         });
 
     [McpServerTool(Name = "mindvault_link_notes", Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -156,13 +161,43 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_archive_note", Destructive = true, Idempotent = false, OpenWorld = false)]
-    [Description("Archive a note instead of deleting: snapshot, set status archived, move to 99_Archive, reindex. There is no delete tool.")]
+    [Description("Archive a note instead of deleting: snapshot, set status archived, move to 99_Archive, reindex. There is no delete tool. Pass dryRun to preview the move without changing anything.")]
     public string ArchiveNote(
-        [Description("Note reference")] string noteRef) =>
+        [Description("Note reference")] string noteRef,
+        [Description("Preview only — report what would happen, change nothing")] bool dryRun = false) =>
         Safe(() =>
         {
-            var result = ctx.Writer.Archive(noteRef);
-            return new { from = result.FromPath, to = result.ToPath, snapshot = result.SnapshotPath, warnings = result.Warnings };
+            var result = ctx.Writer.Archive(noteRef, dryRun);
+            return new { dryRun, from = result.FromPath, to = result.ToPath, snapshot = result.SnapshotPath, warnings = result.Warnings };
+        });
+
+    [McpServerTool(Name = "mindvault_detect_project", ReadOnly = true, Idempotent = true, OpenWorld = false)]
+    [Description("Map a repository/folder name (or any shorthand) to a vault project using exact titles, declared aliases, repoNames frontmatter and separator-insensitive comparison. Returns the match with a confidence tier, or candidates when ambiguous/uncertain — it never guesses. Call this first when starting work in a repo.")]
+    public string DetectProject(
+        [Description("Repo folder name, project shorthand or alias, e.g. 'mind-vault'")] string name) =>
+        Safe(() =>
+        {
+            var d = ctx.ProjectDetect.Detect(name);
+            return new
+            {
+                input = name.Trim(),
+                project = d.Project?.Title,
+                path = d.Project?.Path,
+                confidence = d.Confidence,
+                matchedVia = d.MatchedVia,
+                candidates = d.Candidates,
+            };
+        });
+
+    [McpServerTool(Name = "mindvault_find_related", ReadOnly = true, Idempotent = true, OpenWorld = false)]
+    [Description("Related notes for one note, each with a reason: outgoing wiki links, backlinks, active same-project memory, and same-type notes with similar titles (possible duplicates/follow-ups). Compact and deterministic; use it to find the tasks/risks/reviews around a decision without multiple searches.")]
+    public string FindRelated(
+        [Description("Note reference: path, title, filename or [[wiki link]]")] string noteRef,
+        [Description("Max related notes (default 12, max 50)")] int limit = RelatedNotesService.DefaultLimit) =>
+        Safe(() =>
+        {
+            var result = ctx.Related.Get(noteRef, limit);
+            return new { note = result.Title, path = result.Path, count = result.Related.Count, related = result.Related };
         });
 
     [McpServerTool(Name = "mindvault_validate_vault", ReadOnly = true, Idempotent = true, OpenWorld = false)]
@@ -219,6 +254,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
             {
                 ok = result.Ok, blockers = result.Blockers, warnings = result.Warnings,
                 suggestions = result.Suggestions, relatedPaths = result.RelatedPaths,
+                likelyDuplicatePaths = result.LikelyDuplicatePaths,
             };
         });
 
@@ -266,13 +302,17 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_health", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Fast health check: vault configured/writable, index exists/stale, note count, last scan and app version. Compact; never returns secrets, environment variables or host paths.")]
+    [Description("Fast health check with a verdict (good/warning/critical): vault configured/writable, index exists/stale, note count, last scan and app version. Compact; never returns secrets, environment variables or host paths.")]
     public string Health() => Safe(() =>
     {
         var health = BuildHealth();
+        var verdict = !health.VaultWritable ? "critical"
+            : !health.IndexExists || health.IndexStale ? "warning"
+            : "good";
         return new
         {
             ok = health.VaultWritable && health.IndexExists && !health.IndexStale,
+            verdict,
             version = MindVaultVersion.Current,
             vaultConfigured = true, // this server refuses to start without a resolvable vault
             health.VaultWritable,
@@ -379,6 +419,14 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         catch (AmbiguousNoteRefException ex)
         {
             return Json.Serialize(new { error = ex.Message, code = ex.Code, candidates = ex.Candidates });
+        }
+        catch (DuplicateSuspectedException ex)
+        {
+            return Json.Serialize(new
+            {
+                created = false, reason = "possible_duplicate",
+                error = ex.Message, code = ex.Code, candidates = ex.Candidates,
+            });
         }
         catch (MindVaultException ex)
         {

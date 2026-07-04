@@ -26,7 +26,10 @@ public sealed record DoctorReport(
     bool RunningInContainer, bool ContainerVaultMounted, string User,
     McpEnvReport McpEnvironment,
     IReadOnlyList<string> Warnings,
-    string WatcherStatus);
+    string WatcherStatus,
+    string Verdict = "good",
+    IReadOnlyList<string>? VerdictReasons = null,
+    int ValidationCriticalCount = 0);
 
 public sealed class DoctorService(VaultContext ctx)
 {
@@ -73,6 +76,11 @@ public sealed class DoctorService(VaultContext ctx)
         if (mcpEnv.AllowAnonymous)
             warnings.Add("MCP anonymous access is enabled — only acceptable for local development on a trusted machine.");
 
+        var (verdict, reasons) = ComputeVerdict(
+            vaultWritable, snapshotWritable, ctx.IndexExists,
+            ctx.IndexExists ? ctx.Db.UserVersion : 0,
+            LooksLikePlaceholderPath(ctx.VaultRoot), report.CriticalCount, warnings);
+
         return new DoctorReport(
             MindVaultVersion.Current,
             ctx.VaultRoot,
@@ -98,7 +106,35 @@ public sealed class DoctorService(VaultContext ctx)
             warnings,
             ctx.Config.EnableWatcher
                 ? "requested in config but not implemented (run 'scan' to refresh)"
-                : "disabled");
+                : "disabled",
+            verdict,
+            reasons,
+            report.CriticalCount);
+    }
+
+    /// <summary>
+    /// One verdict a human or agent can branch on. critical = mutations are unsafe or the
+    /// setup is wrong (fix before using MindVault); warning = usable but the brain has
+    /// problems worth fixing; good = everything checked out.
+    /// </summary>
+    private static (string Verdict, List<string> Reasons) ComputeVerdict(
+        bool vaultWritable, bool snapshotWritable, bool indexExists, int indexSchemaVersion,
+        bool placeholderPath, int validationCriticals, IReadOnlyList<string> warnings)
+    {
+        var critical = new List<string>();
+        if (!vaultWritable) critical.Add("vault folder is not writable — all writes will fail");
+        if (!snapshotWritable) critical.Add("snapshot folder is not writable — mutations would run without their safety net");
+        if (placeholderPath) critical.Add("vault path looks like a placeholder, not a real vault");
+        if (indexExists && indexSchemaVersion != IndexDatabase.CurrentSchemaVersion)
+            critical.Add($"index schema is v{indexSchemaVersion} but this build expects v{IndexDatabase.CurrentSchemaVersion} — rebuild the index");
+        if (critical.Count > 0) return ("critical", critical);
+
+        var warn = new List<string>();
+        if (!indexExists) warn.Add("index not built yet — run 'scan'");
+        if (validationCriticals > 0)
+            warn.Add($"validation found {validationCriticals} critical issue(s) — run 'validate' for the list");
+        warn.AddRange(warnings);
+        return warn.Count > 0 ? ("warning", warn) : ("good", []);
     }
 
     public static bool RunningInContainer(Func<string, string?>? getEnv = null)

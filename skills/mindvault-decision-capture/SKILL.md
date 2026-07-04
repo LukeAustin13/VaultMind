@@ -29,7 +29,10 @@ already obvious from the code itself.
      `mindvault_supersede_decision` (old ref, new ref). That sets `status: superseded`
      and cross-links both notes safely — never flip statuses by hand.
 3. Create the decision with `mindvault_create_decision` (project + short imperative title,
-   e.g. "Use SQLite FTS5 for search").
+   e.g. "Use SQLite FTS5 for search"). The create itself REFUSES likely duplicates
+   (`reason: "possible_duplicate"` with candidate paths): read the candidates and update or
+   supersede the existing decision instead. Pass `allowDuplicate: true` only when the user
+   has confirmed the new note is genuinely distinct — never to silence the check.
 4. Fill the sections with `mindvault_append_to_note` on the new note — one call per section,
    a few sentences each:
    - **Context** — the situation and forces at play
@@ -40,7 +43,7 @@ already obvious from the code itself.
    - **Reversal Conditions** — what would make us revisit it (do not skip this)
 5. The create tool already links the decision to the project. Add further
    `mindvault_link_notes` calls only when the decision directly relates to another decision
-   or task.
+   or task — `mindvault_find_related` on the new note shows what is worth linking.
 
 Expected final behaviour: one compact decision note with all six sections filled, correctly
 linked, with any replaced decision superseded — readable cold in six months.

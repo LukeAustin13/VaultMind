@@ -140,9 +140,16 @@ stderr — check your MCP client's server logs.
 | `mindvault_supersede_decision` | Replace a decision safely (two-note snapshot + rollback) |
 | `mindvault_start_session` | Context pack + session log setup in one call — use this first |
 | `mindvault_end_session` | One concise dated handoff block |
-| `mindvault_health` | Fast health check (writable, index fresh, note count, version) — no secrets, no paths |
+| `mindvault_detect_project` | Map a repo/folder name to a vault project (aliases, repoNames, confidence tiers) |
+| `mindvault_find_related` | Links, backlinks and related notes for one note, each with a reason |
+| `mindvault_health` | Fast health check with a good/warning/critical verdict — no secrets, no paths |
 | `mindvault_diagnostics` | Deeper: transport, schema versions, validation summary, warnings — no secrets, no paths |
 | `mindvault_rebuild_index` | Rebuild the SQLite cache from Markdown |
+
+Creates refuse likely duplicates (same/near-identical name, alias collisions) with
+`reason: "possible_duplicate"` and candidate paths; pass `allowDuplicate: true` to
+override deliberately. `mindvault_append_to_note`, `mindvault_update_frontmatter` and
+`mindvault_archive_note` accept `dryRun: true` to preview without writing.
 
 Deliberately **not** exposed: `write_file`, `delete_file`, `run_shell`, `raw_sql`,
 raw filesystem access. Error payloads carry a stable `code`
@@ -164,5 +171,5 @@ From the repo root (bash / Git Bash):
 ```
 
 Expected: an `initialize` result with `"name":"mindvault"`, a `tools/list` result containing
-all 21 tools, and a `tools/call` result whose text payload is the status JSON. Logs go to
+all 23 tools, and a `tools/call` result whose text payload is the status JSON. Logs go to
 stderr only; stdout carries nothing but protocol frames.

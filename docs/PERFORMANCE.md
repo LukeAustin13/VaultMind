@@ -51,12 +51,18 @@ for everything except the cold scan, which is a once-per-rebuild cost.
 
 ## Where the time goes
 
-- **Cold scan** is parse-bound (Markdig + YAML + SHA-256 per note) and scales linearly.
-- **Incremental scan** is a directory walk + mtime/size compare; index writes only for
-  changed files.
-- **Search** is one FTS5 query + a bounded rescoring pass (≤100 candidates) + ≤limit
-  section lookups.
+- **Cold scan** is parse-bound (Markdig + YAML + SHA-256 per note). Parsing runs in
+  parallel across cores and all notes commit in ONE SQLite transaction — one fsync per
+  scan instead of one per note, which is what keeps SD-card storage viable.
+- **Incremental scan** is a directory walk + mtime/size compare (one stat per file, taken
+  from the enumeration itself); index writes only for changed files.
+- **Search** is one FTS5 query + a bounded rescoring pass (≤100 candidates); snippets and
+  section lookups run only for the returned page.
+- **Filtered queries** (context, packs, lists) are written to stay sargable, so the
+  `project`/`type` indexes are used instead of table scans.
 - **Validate** is table scans + link resolution, linear in notes + links, plus two tiny
   write probes.
+- The index runs WAL + `synchronous=NORMAL`: safe against corruption by design, and a
+  worst-case power cut merely costs an incremental rescan of a disposable cache.
 - `verifyContentHash: true` re-hashes every unchanged-looking file each scan — keep it off
   on the Pi unless your sync preserves mtimes on real edits.

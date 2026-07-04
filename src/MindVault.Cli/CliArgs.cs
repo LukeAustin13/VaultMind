@@ -5,7 +5,8 @@ public sealed class CliArgs
 {
     private static readonly HashSet<string> FlagNames =
         new(["json", "create-section", "full", "incremental", "help", "explain",
-             "include-archived", "deep", "brief", "all", "version", "verbose", "quiet"],
+             "include-archived", "deep", "brief", "all", "version", "verbose", "quiet",
+             "dry-run", "allow-duplicate"],
             StringComparer.OrdinalIgnoreCase);
 
     public List<string> Positionals { get; } = [];

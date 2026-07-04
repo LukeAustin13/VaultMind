@@ -18,10 +18,11 @@ work (code lives in the repo, not the vault)
 mindvault_end_session (summary, tests, followUps)   ← one call: handoff
 ```
 
-## Tool cheat sheet (21 tools, all safe)
+## Tool cheat sheet (23 tools, all safe)
 
 | Situation | Tool |
 | --- | --- |
+| Which project is this repo? | `mindvault_detect_project` (repo folder name in, project + confidence out) |
 | Starting substantial work | `mindvault_start_session` |
 | Quick orientation, no session | `mindvault_get_context_pack` / `mindvault_get_project_context` (`detailLevel: brief`) |
 | Find a specific memory | `mindvault_search` (project scope + filters; `explain` for debugging) |
@@ -31,6 +32,8 @@ mindvault_end_session (summary, tests, followUps)   ← one call: handoff
 | Decision replaced an old one | `mindvault_supersede_decision` |
 | Progress + status changes | `mindvault_append_to_note`, `mindvault_update_frontmatter` |
 | Cross-reference notes | `mindvault_link_notes` |
+| What surrounds this decision/task? | `mindvault_find_related` (links, backlinks, project siblings, with reasons) |
+| Preview a risky change | `dryRun: true` on append / update_frontmatter / archive |
 | Retire a note | `mindvault_archive_note` (never delete) |
 | Wrapping up | `mindvault_end_session` |
 | Quick self-check (is the vault usable?) | `mindvault_health` |

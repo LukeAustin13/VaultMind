@@ -22,6 +22,7 @@ public static class ErrorCodes
     public const string IndexStale = "INDEX_STALE";
     public const string McpAuthRequired = "MCP_AUTH_REQUIRED";
     public const string McpAuthFailed = "MCP_AUTH_FAILED";
+    public const string DuplicateSuspected = "DUPLICATE_SUSPECTED";
 }
 
 public class MindVaultException(string message, string code = ErrorCodes.General) : Exception(message)
@@ -43,6 +44,15 @@ public sealed class NoteNotFoundException(string noteRef)
         ErrorCodes.NoteNotFound)
 {
     public string NoteRef { get; } = noteRef;
+}
+
+public sealed class DuplicateSuspectedException(string type, string title, IReadOnlyList<string> candidates)
+    : MindVaultException(
+        $"A very similar {type} already exists — update it instead of duplicating: " +
+        $"{string.Join(" | ", candidates)}. To create '{title}' anyway, pass allow-duplicate.",
+        ErrorCodes.DuplicateSuspected)
+{
+    public IReadOnlyList<string> Candidates { get; } = candidates;
 }
 
 public sealed class AmbiguousNoteRefException(string noteRef, IReadOnlyList<string> candidates)

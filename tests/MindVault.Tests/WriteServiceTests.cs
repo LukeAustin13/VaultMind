@@ -26,7 +26,10 @@ public sealed class WriteServiceTests : IDisposable
     public void CreateProjectRejectsDuplicates()
     {
         _tv.Ctx.Writer.CreateProject("Beta");
-        Assert.Throws<MindVaultException>(() => _tv.Ctx.Writer.CreateProject("Beta"));
+        var ex = Assert.Throws<DuplicateSuspectedException>(() => _tv.Ctx.Writer.CreateProject("Beta"));
+        Assert.Equal(ErrorCodes.DuplicateSuspected, ex.Code);
+        // Even with the override, the exact file collision still refuses — no silent overwrite.
+        Assert.Throws<MindVaultException>(() => _tv.Ctx.Writer.CreateProject("Beta", allowDuplicate: true));
     }
 
     [Fact]

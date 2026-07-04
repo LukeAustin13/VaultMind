@@ -19,7 +19,9 @@ public sealed record ProjectContextResult(
     IReadOnlyList<string> KnownUnknowns,
     IReadOnlyList<ContextRead> RecommendedNextReads,
     IReadOnlyList<string> Warnings,
-    IReadOnlyList<ContextItem> RecentNotes);
+    IReadOnlyList<ContextItem> RecentNotes,
+    string Confidence = "exact",
+    string? ResolvedVia = null);
 
 /// <summary>
 /// Compact per-project bundle so an agent can load project state without dumping the vault.
@@ -39,25 +41,17 @@ public sealed class ProjectContextService(VaultContext ctx)
             throw new MindVaultException($"Unknown detail level '{detailLevel}'. Use brief, standard or deep.");
         ctx.Scanner.EnsureFresh();
 
-        var matches = ctx.Db.FindProjects(project.Trim());
-        if (matches.Count > 1)
-            throw new AmbiguousNoteRefException(project, matches.Select(m => m.Path).ToList());
-        if (matches.Count == 0)
-        {
-            var known = ctx.Db.Query(type: "project", limit: 500)
-                .Where(p => !p.Path.StartsWith("08_Templates/", StringComparison.OrdinalIgnoreCase))
-                .Select(p => p.Title).OrderBy(t => t).Take(10).ToList();
-            throw new MindVaultException(known.Count == 0
-                ? $"Project not found: '{project}'. The vault has no project notes yet."
-                : $"Project not found: '{project}'. Known projects: {string.Join(", ", known)}");
-        }
+        // Alias/repo-name tolerant resolution: unique exact/high match resolves, ambiguity
+        // throws with candidates, no match throws with known projects and near misses.
+        var detection = ctx.ProjectDetect.Detect(project.Trim());
+        var (proj, matchedVia) = detection.Project is not null
+            ? (detection.Project, detection.MatchedVia!)
+            : ctx.ProjectDetect.ResolveOrThrow(project.Trim()); // throws the right error
 
-        var proj = matches[0];
         var brief = detailLevel == "brief";
         limit = Math.Clamp(brief ? Math.Min(limit, 3) : detailLevel == "deep" ? limit * 2 : limit, 1, 50);
-        string[] names = string.Equals(proj.Title, proj.Stem, StringComparison.OrdinalIgnoreCase)
-            ? [proj.Title]
-            : [proj.Title, proj.Stem];
+        // Notes may reference the project by title, stem or a declared alias.
+        var names = ctx.ProjectDetect.QueryNamesFor(proj);
 
         // One read of the project note body feeds goal / non-negotiables / open questions.
         var body = ReadBody(proj);
@@ -89,15 +83,21 @@ public sealed class ProjectContextService(VaultContext ctx)
             architecture,
             knownUnknowns,
             NextReads(proj, activeTasks, blockedTasks, decisions, risks, architecture),
-            BuildWarnings(proj, goal, activeTasks, blockedTasks, names),
-            recentNotes);
+            BuildWarnings(proj, goal, activeTasks, blockedTasks, names, project.Trim(), matchedVia),
+            recentNotes,
+            detection.Confidence,
+            matchedVia);
     }
 
     private string ReadBody(NoteSummary proj)
     {
+        // Section extraction only needs the raw body text — a full NoteParser.Parse would run
+        // Markdig, link/tag extraction and SHA-256 for nothing.
         var abs = ctx.Resolver.AbsolutePathOf(proj);
-        var parsed = NoteParser.Parse(File.ReadAllText(abs), proj.Path);
-        return parsed.Body;
+        var content = File.ReadAllText(abs)
+            .TrimStart('﻿').Replace("\r\n", "\n").Replace("\r", "\n");
+        FrontmatterCodec.TryExtract(content, out _, out var body);
+        return body;
     }
 
     private List<string> RecentLogs(NoteSummary proj, string projectBody)
@@ -132,9 +132,17 @@ public sealed class ProjectContextService(VaultContext ctx)
     }
 
     private List<string> BuildWarnings(NoteSummary proj, string? goal,
-        IReadOnlyList<ContextItem> activeTasks, IReadOnlyList<ContextItem> blockedTasks, string[] names)
+        IReadOnlyList<ContextItem> activeTasks, IReadOnlyList<ContextItem> blockedTasks, string[] names,
+        string requestedName, string matchedVia)
     {
         var warnings = new List<string>();
+
+        if (matchedVia is not ("title" or "stem") &&
+            !string.Equals(requestedName, proj.Title, StringComparison.OrdinalIgnoreCase))
+        {
+            warnings.Add($"Resolved '{requestedName}' to project '{proj.Title}' via {matchedVia} — " +
+                         "verify this is the right project before writing to it.");
+        }
 
         if (goal is null)
             warnings.Add($"Project note has no Goal content — agents will lack direction ({proj.Path}).");
@@ -163,15 +171,20 @@ public sealed class ProjectContextService(VaultContext ctx)
         foreach (var row in supersededBy.Where(r => projectDecisionPaths.ContainsKey(r.NoteId)))
             warnings.Add($"Decision is marked superseded_by but its status is not 'superseded': {row.NotePath}.");
 
-        // Broken wiki links in the project note itself.
-        var known = new HashSet<string>();
-        foreach (var note in ctx.Db.GetAllNotes())
+        // Broken wiki links in the project note itself. Only that note's links are loaded;
+        // the name set is (title, stem) pairs, not full note rows.
+        var projLinks = ctx.Db.GetLinksFor(proj.Id);
+        if (projLinks.Count > 0)
         {
-            known.Add(SlugHelper.NormalizeWiki(note.Title));
-            known.Add(SlugHelper.NormalizeWiki(note.Stem));
+            var known = new HashSet<string>();
+            foreach (var (title, stem) in ctx.Db.GetAllTitleStems())
+            {
+                known.Add(SlugHelper.NormalizeWiki(title));
+                known.Add(SlugHelper.NormalizeWiki(stem));
+            }
+            foreach (var link in projLinks.Where(l => !known.Contains(l.TargetNorm)))
+                warnings.Add($"Project note links to a missing note: [[{link.Target}]].");
         }
-        foreach (var link in ctx.Db.GetAllLinks().Where(l => l.NoteId == proj.Id && !known.Contains(l.TargetNorm)))
-            warnings.Add($"Project note links to a missing note: [[{link.Target}]].");
 
         return warnings;
     }

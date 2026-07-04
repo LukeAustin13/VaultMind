@@ -30,30 +30,40 @@ public sealed partial class SearchService(VaultContext ctx)
         var candidateLimit = Math.Min(Math.Max(limit * 4, 20), 100);
         var archiveFolder = ctx.Config.DefaultArchiveFolder;
 
-        var candidates = ctx.Db.SearchCandidates(query.Trim(), Clean(type), Clean(project),
+        var (candidates, match) = ctx.Db.SearchCandidates(query.Trim(), Clean(type), Clean(project),
             Clean(tag), Clean(status), Clean(updatedAfter), Clean(updatedBefore),
             includeArchived, archiveFolder, candidateLimit);
 
         string? scope = null;
         if (candidates.Count == 0 && Clean(project) is not null)
         {
-            candidates = ctx.Db.SearchCandidates(query.Trim(), Clean(type), null,
+            (candidates, match) = ctx.Db.SearchCandidates(query.Trim(), Clean(type), null,
                 Clean(tag), Clean(status), Clean(updatedAfter), Clean(updatedBefore),
                 includeArchived, archiveFolder, candidateLimit);
             if (candidates.Count > 0) scope = "global-fallback";
         }
 
+        // Query-level ranking inputs are computed once, not once per candidate.
+        var terms = Tokenize(query);
+        var queryNorm = SlugHelper.NormalizeWiki(query.Trim().Trim('"'));
+
         var scored = candidates
-            .Select(c => Score(c, query, archiveFolder, explain))
+            .Select(c => Score(c, terms, queryNorm, archiveFolder, explain))
             .OrderByDescending(s => s.Relevance)
             .ThenBy(s => s.Candidate.Path, StringComparer.OrdinalIgnoreCase)
             .Take(limit)
             .ToList();
 
+        // Snippets are generated only for the page that survives ranking — snippet() re-reads
+        // and tokenizes note bodies, so running it for the whole candidate pool wastes work.
+        var snippets = ctx.Db.GetSnippets(match, scored.Select(s => s.Candidate.Id).ToList());
+
         return scored.Select(s => new SearchResult(
                 s.Candidate.Title, s.Candidate.Path, s.Candidate.Type, s.Candidate.Project,
-                s.Candidate.Status, s.Candidate.Snippet, Math.Round(s.Relevance, 4),
-                Section: FindMatchedSection(s.Candidate),
+                s.Candidate.Status,
+                snippets.GetValueOrDefault(s.Candidate.Id, ""),
+                Math.Round(s.Relevance, 4),
+                Section: FindMatchedSection(s.Candidate.Id, snippets.GetValueOrDefault(s.Candidate.Id, "")),
                 Scope: scope,
                 Why: explain ? s.Why : null))
             .ToList();
@@ -61,16 +71,15 @@ public sealed partial class SearchService(VaultContext ctx)
 
     private sealed record Scored(SearchCandidate Candidate, double Relevance, List<string> Why);
 
-    private static Scored Score(SearchCandidate c, string query, string archiveFolder, bool explain)
+    private static Scored Score(SearchCandidate c, List<string> terms, string queryNorm,
+        string archiveFolder, bool explain)
     {
         // bm25 is negative-better; flip to positive-better relevance.
         var relevance = Math.Max(-c.Bm25, 0.001);
         var why = new List<string>();
         if (explain) why.Add($"bm25(title x4)={c.Bm25:0.###}");
 
-        var terms = Tokenize(query);
         var titleNorm = SlugHelper.NormalizeWiki(c.Title);
-        var queryNorm = SlugHelper.NormalizeWiki(query.Trim().Trim('"'));
 
         if (titleNorm == queryNorm)
         {
@@ -110,16 +119,16 @@ public sealed partial class SearchService(VaultContext ctx)
     }
 
     /// <summary>Heading of the section containing the first highlighted snippet term, if determinable.</summary>
-    private string? FindMatchedSection(SearchCandidate c)
+    private string? FindMatchedSection(long noteId, string snippet)
     {
-        var highlight = HighlightPattern().Match(c.Snippet);
+        var highlight = HighlightPattern().Match(snippet);
         if (!highlight.Success) return null;
-        var body = ctx.Db.GetFtsBody(c.Id);
+        var body = ctx.Db.GetFtsBody(noteId);
         if (body is null) return null;
         var at = body.IndexOf(highlight.Groups[1].Value, StringComparison.OrdinalIgnoreCase);
         if (at < 0) return null;
         var line = body.AsSpan(0, at).Count('\n');
-        var section = ctx.Db.GetHeadings(c.Id).LastOrDefault(h => h.Line <= line);
+        var section = ctx.Db.GetHeadings(noteId).LastOrDefault(h => h.Line <= line);
         return section?.Text;
     }
 

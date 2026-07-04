@@ -32,6 +32,8 @@ public sealed class VaultContext : IDisposable
     public SessionService Sessions { get; }
     public WriteLockService WriteLock { get; }
     public IndexVerifier IndexCheck { get; }
+    public ProjectDetectService ProjectDetect { get; }
+    public RelatedNotesService Related { get; }
 
     /// <summary>
     /// Single coordination lock serialising scans and writes so they never overlap.
@@ -83,6 +85,8 @@ public sealed class VaultContext : IDisposable
         Sessions = new SessionService(this);
         WriteLock = new WriteLockService(this);
         IndexCheck = new IndexVerifier(this);
+        ProjectDetect = new ProjectDetectService(this);
+        Related = new RelatedNotesService(this);
     }
 
     public static VaultContext Create(string? cliVaultPath = null, Func<string, string?>? getEnv = null,

@@ -32,6 +32,31 @@ public static class VaultFiles
         }
     }
 
+    /// <summary>
+    /// Same as <see cref="EnumerateMarkdown"/> but yields FileInfo objects whose metadata was
+    /// populated by the directory enumeration itself — the scanner needs size+mtime for every
+    /// file, and this avoids a second stat() per note.
+    /// </summary>
+    public static IEnumerable<FileInfo> EnumerateMarkdownFiles(string vaultRoot)
+    {
+        var pending = new Stack<DirectoryInfo>();
+        pending.Push(new DirectoryInfo(Path.GetFullPath(vaultRoot)));
+        while (pending.Count > 0)
+        {
+            var dir = pending.Pop();
+            foreach (var sub in dir.EnumerateDirectories())
+            {
+                if (!IsSkippedFolder(sub.Name))
+                    pending.Push(sub);
+            }
+            foreach (var file in dir.EnumerateFiles("*.md"))
+            {
+                if (!IsConflictFile(file.Name))
+                    yield return file;
+            }
+        }
+    }
+
     /// <summary>Conflict copies present in the vault (indexable folders only) — for diagnostics.</summary>
     public static IEnumerable<string> EnumerateConflictMarkdown(string vaultRoot)
     {

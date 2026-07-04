@@ -20,6 +20,7 @@ public sealed class McpIntegrationTests : IDisposable
         "mindvault_rebuild_index", "mindvault_get_context_pack", "mindvault_check_draft",
         "mindvault_supersede_decision", "mindvault_start_session", "mindvault_end_session",
         "mindvault_health", "mindvault_diagnostics",
+        "mindvault_detect_project", "mindvault_find_related",
     ];
 
     private StdioClientTransport CreateTransport() => new(new StdioClientTransportOptions

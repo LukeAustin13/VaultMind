@@ -19,8 +19,8 @@ covers the quick check; this skill is the deep diagnosis.
 
 ## Required workflow
 
-1. `mindvault_health` — quick verdict: vault writable, index exists/stale, note count.
-   If everything is green and the user only wanted reassurance, report that and stop.
+1. `mindvault_health` — the `verdict` field is the headline: `good` / `warning` /
+   `critical`. If it is `good` and the user only wanted reassurance, report that and stop.
 2. `mindvault_status` — note count, `rescanPending`, last scan time. An old scan time after
    known external edits explains "stale search" on its own.
 3. `mindvault_validate_vault` — collect the severity counts and issue list:

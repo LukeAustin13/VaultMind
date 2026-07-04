@@ -26,27 +26,27 @@ public sealed partial class WriteService(VaultContext ctx)
 
     // ---------- create ----------
 
-    public CreateNoteResult CreateProject(string name)
+    public CreateNoteResult CreateProject(string name, bool allowDuplicate = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
             var clean = SlugHelper.SanitizeFileName(name);
-            var warnings = DraftWarnings("project", null, clean);
+            var warnings = DraftWarnings("project", null, clean, allowDuplicate);
             var note = CreateNote($"01_Projects/{clean}.md", NoteTemplates.Project(clean, Today),
                 $"A project named '{clean}' already exists");
             return new CreateNoteResult(note, warnings);
         }
     }
 
-    public CreateNoteResult CreateDecision(string project, string title)
+    public CreateNoteResult CreateDecision(string project, string title, bool allowDuplicate = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
             var proj = FindProject(project);
             var clean = SlugHelper.SanitizeFileName(title);
-            var warnings = DraftWarnings("decision", proj.Title, clean);
+            var warnings = DraftWarnings("decision", proj.Title, clean, allowDuplicate);
             var note = CreateNote($"04_Decisions/Decision - {clean}.md",
                 NoteTemplates.Decision(clean, proj.Title, proj.Stem, Today),
                 $"A decision named '{clean}' already exists");
@@ -54,14 +54,14 @@ public sealed partial class WriteService(VaultContext ctx)
         }
     }
 
-    public CreateNoteResult CreateTask(string project, string title)
+    public CreateNoteResult CreateTask(string project, string title, bool allowDuplicate = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
             var proj = FindProject(project);
             var clean = SlugHelper.SanitizeFileName(title);
-            var warnings = DraftWarnings("task", proj.Title, clean);
+            var warnings = DraftWarnings("task", proj.Title, clean, allowDuplicate);
             var note = CreateNote($"01_Projects/Task - {clean}.md",
                 NoteTemplates.Task(clean, proj.Title, proj.Stem, Today),
                 $"A task named '{clean}' already exists");
@@ -69,10 +69,17 @@ public sealed partial class WriteService(VaultContext ctx)
         }
     }
 
-    /// <summary>Advisory draft-quality warnings surfaced on create results (never blocking here).</summary>
-    private List<string> DraftWarnings(string type, string? project, string title)
+    /// <summary>
+    /// The duplicate gate. High-confidence duplicates (same name, near-identical title of the
+    /// same type+project, or a name that already resolves to a project via alias) REFUSE the
+    /// create unless <paramref name="allowDuplicate"/> — an agent spamming near-identical
+    /// memory is the main way a vault rots. Lower-confidence similarity stays advisory.
+    /// </summary>
+    private List<string> DraftWarnings(string type, string? project, string title, bool allowDuplicate)
     {
         var check = ctx.Drafts.CheckDraft(type, project, title);
+        if (!allowDuplicate && check.LikelyDuplicatePaths.Count > 0)
+            throw new DuplicateSuspectedException(type, title, check.LikelyDuplicatePaths);
         return check.Warnings.Concat(check.Suggestions).ToList();
     }
 
@@ -103,27 +110,25 @@ public sealed partial class WriteService(VaultContext ctx)
     {
         if (string.IsNullOrWhiteSpace(project))
             throw new MindVaultException("Project name must not be empty.");
-        ctx.Scanner.EnsureFresh();
-        var matches = ctx.Db.FindProjects(project.Trim());
-        if (matches.Count == 1) return matches[0];
-        if (matches.Count > 1)
-            throw new AmbiguousNoteRefException(project, matches.Select(m => m.Path).ToList());
-        throw new MindVaultException(
-            $"Project not found: '{project}'. Create it first with: create project \"{project}\"");
+        // Alias/repo-name tolerant: "mind-vault" finds project "MindVault" instead of
+        // failing (or worse, prompting the agent to create a duplicate project).
+        return ctx.ProjectDetect.ResolveOrThrow(project.Trim()).Project;
     }
 
     // ---------- append ----------
 
-    public WriteResult AppendToSection(string noteRef, string section, string content, bool createSection = false)
+    public WriteResult AppendToSection(string noteRef, string section, string content,
+        bool createSection = false, bool dryRun = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
-            return AppendToSectionCore(noteRef, section, content, createSection);
+            return AppendToSectionCore(noteRef, section, content, createSection, dryRun);
         }
     }
 
-    private WriteResult AppendToSectionCore(string noteRef, string section, string content, bool createSection)
+    private WriteResult AppendToSectionCore(string noteRef, string section, string content,
+        bool createSection, bool dryRun)
     {
         if (string.IsNullOrWhiteSpace(section))
             throw new MindVaultException("Section heading must not be empty.");
@@ -133,7 +138,6 @@ public sealed partial class WriteService(VaultContext ctx)
 
         var note = ctx.Resolver.Resolve(noteRef);
         var abs = ctx.Resolver.AbsolutePathOf(note);
-        var snapshot = ctx.Snapshots.Snapshot(abs);
         var (text, lineEnding) = ReadNormalized(abs);
 
         var hasFm = FrontmatterCodec.TryExtract(text, out var yamlText, out var body);
@@ -141,16 +145,25 @@ public sealed partial class WriteService(VaultContext ctx)
         var wanted = section.Trim();
         var target = headings.FirstOrDefault(h => string.Equals(h.Text, wanted, StringComparison.OrdinalIgnoreCase));
 
+        if (target is null && !createSection)
+        {
+            var available = headings.Count == 0 ? "(none)" : string.Join(", ", headings.Select(h => $"'{h.Text}'"));
+            throw new MindVaultException(
+                $"Heading '{wanted}' not found in {note.Path}. Available headings: {available}. " +
+                "Pass --create-section to add it.");
+        }
+        if (dryRun)
+        {
+            return new WriteResult(note.Path, null,
+                $"[dry-run] Would append {normalizedContent.Length} chars under " +
+                (target is null ? $"NEW section '{wanted}'" : $"existing section '{wanted}'") +
+                $" in {note.Path} (snapshot first). Nothing was changed.", Changed: false);
+        }
+        var snapshot = ctx.Snapshots.Snapshot(abs);
+
         string newBody;
         if (target is null)
         {
-            if (!createSection)
-            {
-                var available = headings.Count == 0 ? "(none)" : string.Join(", ", headings.Select(h => $"'{h.Text}'"));
-                throw new MindVaultException(
-                    $"Heading '{wanted}' not found in {note.Path}. Available headings: {available}. " +
-                    "Pass --create-section to add it.");
-            }
             newBody = body.TrimEnd('\n') + $"\n\n## {wanted}\n\n{normalizedContent}\n";
             if (newBody.StartsWith('\n')) newBody = newBody.TrimStart('\n');
         }
@@ -184,16 +197,16 @@ public sealed partial class WriteService(VaultContext ctx)
 
     // ---------- frontmatter ----------
 
-    public WriteResult UpdateFrontmatter(string noteRef, string key, string value)
+    public WriteResult UpdateFrontmatter(string noteRef, string key, string value, bool dryRun = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
-            return UpdateFrontmatterCore(noteRef, key, value);
+            return UpdateFrontmatterCore(noteRef, key, value, dryRun);
         }
     }
 
-    private WriteResult UpdateFrontmatterCore(string noteRef, string key, string value)
+    private WriteResult UpdateFrontmatterCore(string noteRef, string key, string value, bool dryRun)
     {
         key = (key ?? "").Trim();
         if (!FrontmatterKeyPattern().IsMatch(key))
@@ -210,10 +223,18 @@ public sealed partial class WriteService(VaultContext ctx)
 
         var note = ctx.Resolver.Resolve(noteRef);
         var abs = ctx.Resolver.AbsolutePathOf(note);
-        var snapshot = ctx.Snapshots.Snapshot(abs);
         var (text, lineEnding) = ReadNormalized(abs);
 
         var fm = ParseFrontmatterForEdit(text, note.Path, out var body);
+        if (dryRun)
+        {
+            var current = fm.GetScalar(key) ?? (fm.GetList(key) is { Count: > 0 } list
+                ? string.Join(", ", list) : null);
+            return new WriteResult(note.Path, null,
+                $"[dry-run] Would set {key}: '{current ?? "(unset)"}' -> '{value}' in {note.Path} " +
+                "(snapshot first, updated bumped). Nothing was changed.", Changed: false);
+        }
+        var snapshot = ctx.Snapshots.Snapshot(abs);
         if (key.Equals("tags", StringComparison.OrdinalIgnoreCase) ||
             key.Equals("links", StringComparison.OrdinalIgnoreCase))
         {
@@ -278,16 +299,16 @@ public sealed partial class WriteService(VaultContext ctx)
 
     // ---------- archive ----------
 
-    public ArchiveResult Archive(string noteRef)
+    public ArchiveResult Archive(string noteRef, bool dryRun = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
-            return ArchiveCore(noteRef);
+            return ArchiveCore(noteRef, dryRun);
         }
     }
 
-    private ArchiveResult ArchiveCore(string noteRef)
+    private ArchiveResult ArchiveCore(string noteRef, bool dryRun)
     {
         var note = ctx.Resolver.Resolve(noteRef);
         var archiveFolder = ctx.Config.DefaultArchiveFolder;
@@ -295,6 +316,13 @@ public sealed partial class WriteService(VaultContext ctx)
             throw new MindVaultException($"Note is already archived: {note.Path}");
 
         var abs = ctx.Resolver.AbsolutePathOf(note);
+        if (dryRun)
+        {
+            var wouldBe = $"{archiveFolder}/{Path.GetFileName(abs)}";
+            return new ArchiveResult(note.Path, wouldBe, "",
+                [$"[dry-run] Would snapshot, set status: archived and move {note.Path} -> {wouldBe}. " +
+                 "Nothing was changed."]);
+        }
         var snapshot = ctx.Snapshots.Snapshot(abs);
         var warnings = new List<string>();
 

@@ -8,10 +8,11 @@ tools instead of raw filesystem access.
 ## What MindVault is
 
 - A **CLI** (`mindvault`) for humans and scripts: scan, search, read, create, append, validate.
-- An **MCP server** exposing 21 safe `mindvault_*` tools over stdio or token-protected HTTP
+- An **MCP server** exposing 23 safe `mindvault_*` tools over stdio or token-protected HTTP
   (the HTTP mode powers the [Docker / Raspberry Pi deployment](docs/DOCKER.md)) — including
-  context packs, session start/end, draft quality checks, decision supersede and
-  secrets-free health/diagnostics.
+  repo-to-project detection, context packs, session start/end, draft quality checks with
+  duplicate refusal, related-note lookup, decision supersede and secrets-free
+  health/diagnostics.
 - A **SQLite FTS5 index** that is pure, rebuildable cache — your Markdown files stay canonical.
 - A **safety layer**: every mutation snapshots the note first, writes are confined to the vault,
   archive replaces delete, and YAML frontmatter is validated after every write.
@@ -88,13 +89,15 @@ dotnet run --project src/MindVault.Cli -- <command>
 | `search "<query>" [--type --project --tag --status --limit]` | FTS5 full-text search |
 | `read "<note-ref>"` | Print a note (ref = path, title, filename or `[[link]]`) |
 | `list [--type --project --status --tag --limit]` | List notes, most recently updated first |
-| `create project "<name>"` | New project note in `01_Projects` |
-| `create decision --project "<p>" --title "<t>"` | New decision linked to a project |
-| `create task --project "<p>" --title "<t>"` | New task linked to a project |
+| `detect-project ["<name>"]` | Map a repo/folder name to a vault project via aliases + repoNames |
+| `related "<note-ref>"` | Links, backlinks and related notes, each with a reason |
+| `create project "<name>"` | New project note in `01_Projects` (refuses likely duplicates; `--allow-duplicate` overrides) |
+| `create decision --project "<p>" --title "<t>"` | New decision linked to a project (aliases resolve) |
+| `create task --project "<p>" --title "<t>"` | New task linked to a project (aliases resolve) |
 | `append --note "<ref>" --section "<heading>" --content "<text>"` | Append under a heading (`--content-file` and `--create-section` supported) |
 | `update-frontmatter --note "<ref>" --key "<k>" --value "<v>"` | Set one flat frontmatter key |
 | `link --from "<ref>" --to "<ref>"` | Add a `[[wiki link]]` to the source note's links |
-| `archive "<note-ref>"` | Snapshot, mark `archived`, move to `99_Archive` |
+| `archive "<note-ref>" [--dry-run]` | Snapshot, mark `archived`, move to `99_Archive` (`--dry-run` previews; also on `append`/`update-frontmatter`) |
 | `restore "<note-ref>" [--snapshot <path>]` | Restore a note from its newest (or a chosen) snapshot; the current content is snapshotted first |
 | `backup` | Zip all vault Markdown into `.mindvault/backups` |
 | `prune [--days n]` | Delete snapshots older than the retention window (default 30 days) |
@@ -106,7 +109,7 @@ dotnet run --project src/MindVault.Cli -- <command>
 | `session start\|log\|end` | Session briefing pack and concise handoff entries |
 
 | `validate` | Severity-graded vault problems (exit 1 on criticals) |
-| `doctor` | Full environment diagnosis: writability, placeholder paths, Docker, MCP env |
+| `doctor` | Health verdict (good/warning/critical) + full environment diagnosis |
 | `project-context "<project>"` | Compact JSON project bundle (same as the MCP tool) |
 | `generate-fixture-vault --path <new-dir>` | Dev/test: synthetic vault for benchmarks/evals |
 
@@ -155,13 +158,14 @@ register the server with your MCP client using stdio:
 }
 ```
 
-Tools exposed (21): `mindvault_status`, `mindvault_search`, `mindvault_read_note`,
+Tools exposed (23): `mindvault_status`, `mindvault_search`, `mindvault_read_note`,
 `mindvault_list_notes`, `mindvault_create_project`, `mindvault_create_decision`,
 `mindvault_create_task`, `mindvault_append_to_note`, `mindvault_update_frontmatter`,
 `mindvault_link_notes`, `mindvault_archive_note`, `mindvault_validate_vault`,
 `mindvault_get_project_context`, `mindvault_rebuild_index`, `mindvault_get_context_pack`,
 `mindvault_check_draft`, `mindvault_supersede_decision`, `mindvault_start_session`,
-`mindvault_end_session`, `mindvault_health`, `mindvault_diagnostics`.
+`mindvault_end_session`, `mindvault_health`, `mindvault_diagnostics`,
+`mindvault_detect_project`, `mindvault_find_related`.
 
 `mindvault_start_session` is the one to reach for first: one call returns the full context
 pack (goal, non-negotiables, task-relevant notes, decisions in force, tasks, risks,

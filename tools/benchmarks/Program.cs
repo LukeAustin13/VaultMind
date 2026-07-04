@@ -79,8 +79,12 @@ foreach (var size in sizes)
         results.Add(("validate", $"{vsw.ElapsedMilliseconds} ms " +
                                  $"({report.CriticalCount}c/{report.WarningCount}w/{report.InfoCount}i)"));
 
-        // 10. index size
-        results.Add(("index size", $"{new FileInfo(ctx.IndexFile).Length / 1024:N0} KB"));
+        // 10. index size (main DB + WAL: after a bulk-transaction scan the data may still
+        // live in the -wal file until SQLite checkpoints it)
+        var indexBytes = new[] { ctx.IndexFile, ctx.IndexFile + "-wal", ctx.IndexFile + "-shm" }
+            .Where(File.Exists)
+            .Sum(f => new FileInfo(f).Length);
+        results.Add(("index size (db+wal)", $"{indexBytes / 1024:N0} KB"));
 
         // 11. memory
         results.Add(("managed heap", $"{GC.GetTotalMemory(forceFullCollection: true) / (1024 * 1024)} MB"));

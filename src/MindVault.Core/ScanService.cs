@@ -26,58 +26,67 @@ public sealed class ScanService(VaultContext ctx)
         var known = db.GetFileStates();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int added = 0, updated = 0, unchanged = 0;
-        var errors = new List<string>();
+        var errors = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var verifyHash = ctx.Config.VerifyContentHash;
 
-        foreach (var abs in VaultFiles.EnumerateMarkdown(ctx.VaultRoot))
+        // Cheap metadata pass first (single stat per file via the enumeration), so only files
+        // that actually need reading/parsing reach the expensive stage.
+        var toProcess = new List<(string Abs, string Rel, bool NeedsHashCheck, FileState? State)>();
+        foreach (var file in VaultFiles.EnumerateMarkdownFiles(ctx.VaultRoot))
         {
             ct.ThrowIfCancellationRequested();
-            var rel = PathGuard.ToRelative(ctx.VaultRoot, abs);
+            var rel = PathGuard.ToRelative(ctx.VaultRoot, file.FullName);
             seen.Add(rel);
-            var info = new FileInfo(abs);
             if (known.TryGetValue(rel, out var state) &&
-                state.ModifiedTicks == info.LastWriteTimeUtc.Ticks && state.Size == info.Length)
+                state.ModifiedTicks == file.LastWriteTimeUtc.Ticks && state.Size == file.Length)
             {
-                if (!verifyHash)
-                {
-                    unchanged++;
-                    continue;
-                }
+                if (!verifyHash) { unchanged++; continue; }
+                toProcess.Add((file.FullName, rel, true, state));
+            }
+            else
+            {
+                toProcess.Add((file.FullName, rel, false, null));
+            }
+        }
+
+        // Parse in parallel (Markdig + YAML + SHA-256 dominate cold scans; a Pi has 4 cores to
+        // use), upsert into ONE bulk transaction (one commit instead of one fsync per note).
+        // Per-note DB writes stay atomic: UpsertNote holds the DB lock for the whole note.
+        var removedPaths = known.Keys.Where(p => !seen.Contains(p)).ToList();
+        if (toProcess.Count > 0 || removedPaths.Count > 0)
+        {
+            using var bulk = db.BeginBulk();
+            var options = new ParallelOptions
+            {
+                CancellationToken = ct,
+                MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 8),
+            };
+            Parallel.ForEach(toProcess, options, item =>
+            {
                 try
                 {
-                    if (NoteParser.ComputeBodyHash(File.ReadAllText(abs)) == state.BodyHash)
+                    if (item.NeedsHashCheck &&
+                        NoteParser.ComputeBodyHash(File.ReadAllText(item.Abs)) == item.State!.BodyHash)
                     {
-                        unchanged++;
-                        continue;
+                        Interlocked.Increment(ref unchanged);
+                        return;
                     }
+                    db.UpsertNote(NoteParser.ParseFile(ctx.VaultRoot, item.Abs));
+                    if (known.ContainsKey(item.Rel)) Interlocked.Increment(ref updated);
+                    else Interlocked.Increment(ref added);
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    errors.Add($"{rel}: {ex.Message}");
-                    continue;
+                    errors.Enqueue($"{item.Rel}: {ex.Message}");
                 }
-            }
-            try
-            {
-                db.UpsertNote(NoteParser.ParseFile(ctx.VaultRoot, abs));
-                if (known.ContainsKey(rel)) updated++;
-                else added++;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                errors.Add($"{rel}: {ex.Message}");
-            }
-        }
+            });
 
-        var removed = 0;
-        foreach (var path in known.Keys.Where(p => !seen.Contains(p)))
-        {
-            db.DeleteNoteByPath(path);
-            removed++;
+            foreach (var path in removedPaths)
+                db.DeleteNoteByPath(path);
         }
 
         ctx.State.Save(new VaultState { LastScanUtc = DateTime.UtcNow, NoteCount = db.CountNotes() });
-        return new ScanResult(added, updated, removed, unchanged, errors);
+        return new ScanResult(added, updated, removedPaths.Count, unchanged, [.. errors]);
     }
 
     /// <summary>

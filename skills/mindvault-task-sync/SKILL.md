@@ -26,7 +26,9 @@ Do NOT use for: sub-30-minute chores you are about to do anyway, vague ideas
    It catches duplicates and near-duplicates (update those instead) and flags titles too
    vague to act on later — rename rather than argue with it.
 3. New durable task → `mindvault_create_task` (project + short actionable title, e.g.
-   "Add retry to sync client"). Then use `mindvault_append_to_note` to fill
+   "Add retry to sync client"). The create refuses likely duplicates with candidate paths
+   (`possible_duplicate`) — update the existing task instead; `allowDuplicate: true` only
+   with explicit user confirmation. Then use `mindvault_append_to_note` to fill
    **Description** and **Acceptance Criteria** — a few lines each. Use **Context** for the
    why and **Status Notes** for progress remarks.
 4. Status changes → `mindvault_update_frontmatter` on the task note with `key: "status"`:

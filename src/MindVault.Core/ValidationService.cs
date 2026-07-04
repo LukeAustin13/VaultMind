@@ -70,8 +70,7 @@ public sealed class ValidationService(VaultContext ctx)
             issues.Add(new(IssueSeverity.Critical, code, note.ParseError, note.Path));
         }
 
-        var keyPresence = NoteTypes.RequiredFrontmatterKeys
-            .ToDictionary(k => k, k => ctx.Db.GetNoteIdsWithFrontmatterKey(k));
+        var keyPresence = ctx.Db.GetFrontmatterKeyPresence(NoteTypes.RequiredFrontmatterKeys.ToList());
         foreach (var note in contentNotes.Where(n => NoteTypes.IsManaged(n.Type)))
         {
             foreach (var key in NoteTypes.RequiredFrontmatterKeys.Where(k => !keyPresence[k].Contains(note.Id)))

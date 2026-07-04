@@ -5,7 +5,13 @@ public sealed record DraftCheckResult(
     IReadOnlyList<string> Blockers,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> Suggestions,
-    IReadOnlyList<string> RelatedPaths);
+    IReadOnlyList<string> RelatedPaths,
+    IReadOnlyList<string> LikelyDuplicatePaths)
+{
+    public DraftCheckResult(bool ok, IReadOnlyList<string> blockers, IReadOnlyList<string> warnings,
+        IReadOnlyList<string> suggestions, IReadOnlyList<string> relatedPaths)
+        : this(ok, blockers, warnings, suggestions, relatedPaths, []) { }
+}
 
 /// <summary>
 /// Advisory quality gate for memory writes. Blockers are things the create would reject
@@ -30,6 +36,7 @@ public sealed class DraftCheckService(VaultContext ctx)
         var warnings = new List<string>();
         var suggestions = new List<string>();
         var related = new List<string>();
+        var likelyDuplicates = new List<string>();
 
         type = (type ?? "").Trim().ToLowerInvariant();
         if (!NoteTypes.IsManaged(type))
@@ -45,10 +52,11 @@ public sealed class DraftCheckService(VaultContext ctx)
         NoteSummary? proj = null;
         if (!string.IsNullOrWhiteSpace(project))
         {
-            var matches = ctx.Db.FindProjects(project.Trim());
-            if (matches.Count == 1) proj = matches[0];
-            else if (matches.Count > 1)
-                blockers.Add($"Project '{project}' is ambiguous: {string.Join(" | ", matches.Select(m => m.Path))}.");
+            var detection = ctx.ProjectDetect.Detect(project.Trim());
+            if (detection.Project is not null) proj = detection.Project;
+            else if (detection.Ambiguous)
+                blockers.Add($"Project '{project}' is ambiguous: " +
+                             $"{string.Join(" | ", detection.Candidates.Select(c => c.Path))}.");
             else if (type is "decision" or "task")
                 blockers.Add($"Project not found: '{project}'. Create it first with mindvault_create_project.");
             else
@@ -83,6 +91,25 @@ public sealed class DraftCheckService(VaultContext ctx)
         {
             blockers.Add($"A note with this name already exists: {existing.Path}. Update it instead of duplicating.");
             related.Add(existing.Path);
+            likelyDuplicates.Add(existing.Path);
+        }
+
+        // A project whose name collides with another project's alias/repo name would split
+        // that project's memory in two.
+        if (type == "project" && blockers.Count == 0)
+        {
+            var detection = ctx.ProjectDetect.Detect(title);
+            List<ProjectCandidate> hits = detection.Project is not null
+                ? [new ProjectCandidate(detection.Project.Title, detection.Project.Path,
+                    detection.Project.Status, detection.MatchedVia!)]
+                : detection.Ambiguous ? detection.Candidates.ToList() : [];
+            foreach (var hit in hits)
+            {
+                warnings.Add($"'{title}' already resolves to project '{hit.Title}' via {hit.MatchedVia} " +
+                             $"({hit.Path}) — creating it would split that project's memory.");
+                related.Add(hit.Path);
+                likelyDuplicates.Add(hit.Path);
+            }
         }
 
         // Near-duplicates and possible conflicts among same-type notes (project-scoped when known).
@@ -97,6 +124,7 @@ public sealed class DraftCheckService(VaultContext ctx)
             {
                 warnings.Add($"Very similar existing {type}: '{candidate.Title}' ({candidate.Path}).");
                 related.Add(candidate.Path);
+                likelyDuplicates.Add(candidate.Path);
             }
             else if (type == "decision" && overlap >= 0.34)
             {
@@ -118,7 +146,8 @@ public sealed class DraftCheckService(VaultContext ctx)
             suggestions.Add("Fill Acceptance Criteria so 'done' is checkable.");
 
         return new DraftCheckResult(blockers.Count == 0, blockers, warnings, suggestions,
-            related.Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToList());
+            related.Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToList(),
+            likelyDuplicates.Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToList());
     }
 
     /// <summary>Quality check of an existing note: schema, links, and type-specific gaps.</summary>

@@ -40,6 +40,26 @@ tags:
 
 Project-related notes should also carry `project:` and `links:`.
 
+Project notes may additionally declare **aliases** and **repo names** so agents can map a
+code repository (or any shorthand) to the right project:
+
+```yaml
+type: project
+project: MindVault
+aliases:
+  - mindvault
+  - Mind Vault
+repoNames:
+  - MindVault
+  - mind-vault
+```
+
+`detect-project` / `mindvault_detect_project` resolve through exact title → alias →
+repoName → condensed comparison (separator/case-insensitive: `mind_vault` matches
+`mind-vault`), and only suggest candidates for anything fuzzier. Aliases also widen
+`project:` matching in context/pack queries, and creating a project whose name collides
+with another project's alias is refused (`DUPLICATE_SUSPECTED`).
+
 Allowed statuses:
 
 ```

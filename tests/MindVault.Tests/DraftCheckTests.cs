@@ -74,7 +74,7 @@ public sealed class DraftCheckTests : IDisposable
     [Fact]
     public void CreateResultsCarryDraftWarnings()
     {
-        var result = _tv.Ctx.Writer.CreateTask("Alpha", "Ship the v1");
+        var result = _tv.Ctx.Writer.CreateTask("Alpha", "Ship the v1", allowDuplicate: true);
         Assert.Contains(result.Warnings, w => w.Contains("Task: Ship v1")); // near-duplicate surfaced
     }
 

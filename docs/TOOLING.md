@@ -22,17 +22,19 @@ scan
 rebuild-index
 validate [--json]
 doctor [--json]
+detect-project ["<name>"] [--json]
+related "<note-ref>" [--limit n] [--json]
 search "<query>" [--type t] [--project p] [--tag t] [--status s] [--limit n] [--json]
 read "<note-ref>" [--json]
 list [--type t] [--project p] [--status s] [--tag t] [--limit n] [--json]
-create project "<name>"
-create decision --project "<p>" --title "<t>"
-create task --project "<p>" --title "<t>"
-append --note "<ref>" --section "<heading>" --content "<text>" [--create-section]
+create project "<name>" [--allow-duplicate]
+create decision --project "<p>" --title "<t>" [--allow-duplicate]
+create task --project "<p>" --title "<t>" [--allow-duplicate]
+append --note "<ref>" --section "<heading>" --content "<text>" [--create-section] [--dry-run]
 append --note "<ref>" --section "<heading>" --content-file "<path>"
-update-frontmatter --note "<ref>" --key "<key>" --value "<value>"
+update-frontmatter --note "<ref>" --key "<key>" --value "<value>" [--dry-run]
 link --from "<ref>" --to "<ref>"
-archive "<note-ref>"
+archive "<note-ref>" [--dry-run]
 restore "<note-ref>" [--snapshot <path>]
 backup
 prune [--days n]
