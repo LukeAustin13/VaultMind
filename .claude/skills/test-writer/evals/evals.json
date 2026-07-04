@@ -1,0 +1,39 @@
+{
+  "skill_name": "test-writer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "tests_for_existing_service",
+      "prompt": "Write tests for OrderTotalsCalculator — it applies line totals, a tiered discount at 100.00, and rounds to 2dp.",
+      "expected_output": "Reads a sibling test first to copy suite conventions, discovers the real runner, writes happy-path + boundary (99.99/100.00/100.01) + failure cases, RUNS them and includes run evidence, and proves each test can fail by naming the production change that breaks it. Expected values computed independently, never by calling the code under test.",
+      "assertions": [
+        "Read an existing test file first and matched its conventions",
+        "Boundary cases cover both sides of the 100.00 threshold",
+        "Tests were actually executed with run evidence in the output",
+        "Each test's failure condition is named (what production change breaks it)",
+        "No expected value was computed by calling the code under test",
+        "Did not touch production code"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "should_not_trigger_new_code_tdd",
+      "prompt": "Build a new PriceRounding helper test-first — red-green-refactor.",
+      "expected_output": "Does NOT write after-the-fact tests. New code under test-first discipline routes to tdd-loop.",
+      "assertions": [
+        "Did not write tests for code that does not exist yet outside the TDD loop",
+        "Routed to or applied tdd-loop (failing test before production code)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_failing_test",
+      "prompt": "OrderTotalsCalculatorTests.Applies_tier_discount is failing since this morning — sort it out.",
+      "expected_output": "Does NOT write new tests. A failing test needs diagnosis first — routes to bug-hunter.",
+      "assertions": [
+        "Did not respond by writing additional tests",
+        "Routed to or applied bug-hunter for the diagnosis"
+      ]
+    }
+  ]
+}

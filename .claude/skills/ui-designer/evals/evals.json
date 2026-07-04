@@ -1,0 +1,66 @@
+{
+  "skill_name": "ui-designer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "vague_screen_request",
+      "prompt": "we need an admin page where support staff can find a customer and sort out their subscription, refunds, that kind of thing. web app, we use react but you don't need to write code, just design it",
+      "expected_output": "Clarifies the support agent's primary job and data shape, runs a direction debate (e.g. search-first single-customer workspace vs master-detail list vs dashboard), commits to one direction with a rejection table, and produces the full spec: IA, tokens or design-system references, layout, component states, all five data states, real copy, interactions, focus management, accessibility.",
+      "assertions": [
+        "Established the user (support agent) and primary job before any layout decisions",
+        "Debated 2-3 genuinely different directions and committed to one with reasoning",
+        "Output includes a Rejected directions table with one-line reasons",
+        "All data-dependent areas specify empty/loading/error/loaded/partial states",
+        "Copy is written out (real button labels, empty-state text), no placeholder text",
+        "Did not write React implementation code"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "make_it_less_ai_generated",
+      "prompt": "honestly our new analytics page looks like every AI-generated dashboard ever - purple gradients, four stat cards, generic chart. can you make it feel like OUR product? we're a freight logistics tool for dispatchers",
+      "expected_output": "A critique-then-redesign pass grounded in the dispatcher's actual job: identifies which anti-patterns are present (stat-card slop, purple-gradient genericism, fake-data optimism), asks/derives what dispatchers check first and most often, and proposes a direction where prominence maps to dispatcher decisions (e.g. exceptions and late shipments first), with domain-appropriate visual language replacing the template styling.",
+      "assertions": [
+        "Named the specific anti-patterns present rather than generally agreeing it looks generic",
+        "Anchored the redesign in the dispatcher's job and checking frequency, not in styling novelty",
+        "Replaced generic prominence (stat cards) with job-driven prominence (actionable exceptions)",
+        "Visual direction derived from the freight/logistics domain rather than another trend",
+        "Applied or referenced references/ui-anti-patterns.md checks including the swap test"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "critique_mode_screenshot",
+      "prompt": "here's a screenshot of our settings screen, tear it apart. don't redesign it yet, just tell me what's wrong",
+      "expected_output": "Critique Mode output only: a one-sentence verdict naming the biggest problem, ranked issues (Blocking/Major/Minor) each citing the specific element and concrete fix, a what-works list, and a targeted-fixes vs redesign recommendation. No full design spec produced.",
+      "assertions": [
+        "Produced a verdict plus severity-ranked issues, not a full design specification",
+        "Each issue names the specific element, the reason it fails, and a concrete fix",
+        "Included genuinely positive observations, not only defects",
+        "Ended with a fix-vs-redesign recommendation",
+        "Did not redesign the screen (user said not yet)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "should_not_trigger_implementation",
+      "prompt": "here's the approved design spec for the orders screen, build the XAML for it",
+      "expected_output": "Does NOT re-design or second-guess the approved spec. Routes to frontend-implementer to build the UI from the specification.",
+      "assertions": [
+        "Did not produce a new design spec or reopen design decisions",
+        "Routed to or applied the frontend-implementer skill"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "small_change_stays_small",
+      "prompt": "add a 'last synced' timestamp under the account name in the header, subtle, shouldn't fight with anything",
+      "expected_output": "Small Change Mode: the changed element's spec (placement, token-based typography/colour, relative-time format choice, truncation/overflow behaviour), accessibility impact, one-line rationale. No direction debate, no full-spec scaffolding.",
+      "assertions": [
+        "Used Small Change Mode - no full output format, no direction debate",
+        "Specified the element precisely (token references, placement, format) rather than vaguely",
+        "Noted accessibility impact or explicitly stated none"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "skill_name": "dotnet-upgrade",
+  "evals": [
+    {
+      "id": 1,
+      "name": "staged_upgrade_plan",
+      "prompt": "Upgrade this solution from .NET 6 to .NET 8: three projects (Api, Core, Tests), a Dockerfile on mcr.microsoft.com/dotnet/aspnet:6.0, and GitHub Actions pinning actions/setup-dotnet to 6.0.x.",
+      "expected_output": "Inventories the full upgrade surface first (TFMs, SDK pins, CI images, Dockerfile base tags), reviews breaking changes for BOTH majors crossed (7 and 8) against APIs the solution actually uses (grep, not memory), bumps all projects in one change set, updates Dockerfile and CI in the same plan, and ends with the verification gate. Produces a staged migration plan with evidence columns.",
+      "assertions": [
+        "Inventory included the Dockerfile base image and CI setup-dotnet pin, not just csproj TFMs",
+        "Breaking changes reviewed per intermediate major (7 AND 8), not only the destination",
+        "Suspect APIs grepped in the codebase rather than assumed",
+        "All projects bumped in one change set with the mixed-TFM risk named",
+        "Plan ends with a verification step (dotnet-quality-gate or equivalent)",
+        "Upgrade commit scope limited to versions + compatibility fixes, nothing else"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "boundary_framework_constraint",
+      "prompt": "This is a Revit 2024 add-in on .NET Framework 4.8. Upgrade it to .NET 8 so we can use the new LINQ methods.",
+      "expected_output": "Does not comply blindly. Revit 2024's add-in host requires .NET Framework 4.8 — the host constrains the TFM; .NET 8 would not load. Explains the constraint, states which Revit versions moved to .NET Core (2025+), and offers the real options: stay on 4.8 (possibly with LangVersion bump for syntax-only features), multi-target if supporting newer Revit, or defer until the host upgrades.",
+      "assertions": [
+        "Refused or heavily qualified the upgrade because the host platform pins the framework",
+        "Named the host-compatibility constraint explicitly rather than producing a generic upgrade plan",
+        "Offered legitimate alternatives (LangVersion, multi-targeting, wait for host support)",
+        "Did not claim specific Revit version facts without flagging verification via researcher"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "trap_drive_by_modernisation",
+      "prompt": "While upgrading us from .NET 6 to 8, also modernise the code — primary constructors, collection expressions, file-scoped namespaces everywhere, the works.",
+      "expected_output": "The trap: mixing wholesale syntax modernisation into an upgrade commit. Keeps the upgrade commit to versions + compatibility fixes only (the skill's explicit scope fence), and routes the modernisation to a separate refactorer pass after the upgrade is green — attributability is the reason.",
+      "assertions": [
+        "Did not fold repo-wide syntax modernisation into the upgrade change set",
+        "Cited attributability/scope as the reason (a red test must implicate the upgrade, not a restyle)",
+        "Routed modernisation to refactorer as a follow-up after green verification"
+      ]
+    }
+  ]
+}

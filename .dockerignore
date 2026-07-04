@@ -1,0 +1,24 @@
+# VCS / IDE
+.git
+.vs
+.vscode
+*.user
+*.suo
+
+# Build output
+bin
+obj
+**/bin
+**/obj
+TestResults
+**/TestResults
+coverage
+artifacts
+
+# Machine-local configuration (never bake into an image)
+config/mindvault.config.local.json
+
+# Vault operational data, in case a vault lives near the build context
+**/.mindvault/snapshots
+**/.mindvault/index.sqlite
+**/.obsidian/workspace*

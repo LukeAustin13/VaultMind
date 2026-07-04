@@ -1,0 +1,64 @@
+{
+  "skill_name": "engineering-guardrails",
+  "evals": [
+    {
+      "id": 1,
+      "name": "casual_feature_add",
+      "prompt": "add an endpoint to export a customer's orders as csv, should be quick",
+      "expected_output": "Discovers how the repo already structures endpoints/exports, states requirement + confirmed assumptions + success criteria + scope before editing, implements the minimal change matching existing conventions, runs relevant tests/build, ends with a handoff note listing changed files, what was verified with output, what was not, risks, and next action.",
+      "assertions": [
+        "Read existing controller/service patterns before writing the new endpoint",
+        "Stated checkable success criteria before the first edit",
+        "New code matches the repo's existing conventions (error shape, naming, DI style) rather than introducing new patterns",
+        "Ran build/tests and reported actual results, or explicitly stated what was not run",
+        "Ended with a handoff note (changed files, verified/not verified, risks, next)",
+        "Did not add speculative parameters, interfaces, or config beyond the ask"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "resists_scope_creep_and_rewrite",
+      "prompt": "fix the off-by-one in the pagination helper. while you're in there the whole file is kind of a mess honestly",
+      "expected_output": "Fixes the off-by-one surgically with a test covering the boundary. Does NOT rewrite the 'messy' file — acknowledges the observation, offers refactoring as a separate follow-up (refactorer skill), keeps the diff mapped to the bug fix.",
+      "assertions": [
+        "The diff is limited to the off-by-one fix (and its test), not a file rewrite",
+        "Added or ran a test that exercises the exact boundary that was wrong",
+        "Explicitly deferred the cleanup as a separate task rather than bundling it or silently ignoring the comment",
+        "Verification output included in the handoff"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "honest_when_tests_fail",
+      "prompt": "wire up the new NotificationService to send on order completion and make sure everything still passes",
+      "expected_output": "If any test fails after the change, the failure is reported plainly with output — the work is not declared done, and no failing test is skipped, deleted, or glossed over. If everything passes, the pass is cited with the actual command result.",
+      "assertions": [
+        "Did not claim 'everything passes' without fresh test output",
+        "Any failing test was surfaced with its output and treated as blocking, not omitted from the summary",
+        "Did not disable, skip, or delete a failing test to get to green",
+        "Handoff note separates verified claims from unverified ones"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no_placeholder_todos",
+      "prompt": "implement the retry logic for the webhook sender, exponential backoff, cap at 5 attempts",
+      "expected_output": "Complete implementation of the specified behaviour. No 'TODO: handle jitter later', no stubbed branches, no NotImplementedException. If something genuinely cannot be completed (missing dependency, ambiguous requirement), it is raised to the user rather than stubbed silently.",
+      "assertions": [
+        "No TODO/FIXME/NotImplementedException left in the delivered code without explicit user acceptance",
+        "The specified behaviour (exponential backoff, 5-attempt cap) is fully implemented and tested",
+        "Any genuinely blocked piece was raised to the user, not stubbed silently"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "should_route_large_work_to_planner",
+      "prompt": "migrate our whole notification system from polling to an event-driven architecture",
+      "expected_output": "Recognises this is multi-system staged work, not a single disciplined change — routes to planner for sequencing before any editing begins, rather than starting to edit files under this skill.",
+      "assertions": [
+        "Did not start editing files immediately",
+        "Routed to or applied the planner skill for staging before implementation"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# Machine-local MindVault configuration (copy from mindvault.config.example.json)
+config/mindvault.config.local.json
+
+# .NET build output
+bin/
+obj/
+artifacts/
+TestResults/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo

@@ -1,0 +1,39 @@
+{
+  "skill_name": "repo-reviewer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "health_check_request",
+      "prompt": "Is this codebase healthy? Give me a repo health check before we onboard two new developers.",
+      "expected_output": "A one-page health snapshot: structure/stack map, risk hotspots backed by git churn evidence (actual commands run), dependency and security posture routed to specialists, test/CI state, and a prioritised action list with a routing receipt line.",
+      "assertions": [
+        "Ran (or attempted) the git churn commands rather than guessing hotspots",
+        "Every hotspot cites concrete evidence: churn count, size, or missing test path",
+        "Routed dependency and security depth to specialists instead of re-deriving",
+        "Produced a prioritised action list, not an unranked dump",
+        "Included the routing receipt (which specialists ran or why not)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "shallow_git_honesty",
+      "prompt": "Health check this repo please. (It was just imported — git history is a single squashed commit.)",
+      "expected_output": "States that churn analysis is impossible with one commit, grades Risk Hotspots as insufficient data, and grounds the rest of the snapshot in what is verifiable (structure, tests, dependencies).",
+      "assertions": [
+        "Did not fabricate churn-based hotspots from a single-commit history",
+        "Explicitly marked hotspot analysis as insufficient data",
+        "Still delivered the verifiable sections (structure, test state, dependencies)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_cleanup",
+      "prompt": "Clean up this repo — fix the naming inconsistencies and stale config.",
+      "expected_output": "Does NOT produce a health snapshot. Drift-fixing requests route to project-maintainer.",
+      "assertions": [
+        "Did not produce a graded health snapshot",
+        "Routed to or applied project-maintainer (drift detection and minimal fixes)"
+      ]
+    }
+  ]
+}

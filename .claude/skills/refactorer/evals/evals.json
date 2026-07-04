@@ -1,0 +1,56 @@
+{
+  "skill_name": "refactorer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "rename_with_config_string_trap",
+      "prompt": "Rename ProcessingMode to ExecutionMode across the solution — it's referenced in C# plus appsettings.json ('ProcessingMode': 'Batch') and one reflection call Type.GetType(\"App.ProcessingMode\").",
+      "fixtures": {
+        "src/App/ProcessingMode.cs": "namespace App;\n\npublic enum ProcessingMode\n{\n    Batch,\n    Streaming\n}\n",
+        "src/App/ModeLoader.cs": "namespace App;\n\npublic static class ModeLoader\n{\n    public static object? Load()\n    {\n        var t = System.Type.GetType(\"App.ProcessingMode\");\n        return t is null ? null : System.Activator.CreateInstance(t);\n    }\n}\n",
+        "src/App/appsettings.json": "{\n  \"ProcessingMode\": \"Batch\"\n}\n"
+      },
+      "expected_output": "Establishes a green baseline first, greps ALL usages including the string literal in appsettings.json and the reflection string in ModeLoader.cs before renaming, updates every site including the strings, and verifies after the single move. The two string references are the trap — a symbol-only rename leaves them silently broken.",
+      "assertions": [
+        "Established or attempted a green baseline before the first change",
+        "Grepped for the identifier as a string, not just as a symbol",
+        "Updated the appsettings.json value key and the Type.GetType string",
+        "One move then one verification, not a batch of unrelated cleanups",
+        "Final diff maps 1:1 to the declared rename"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "should_not_trigger_behaviour_change",
+      "prompt": "While you're cleaning up OrderService, also make it retry failed payments twice.",
+      "expected_output": "Refuses to mix behaviour change into a refactor — retry logic is a feature change, separate from behaviour-preserving cleanup.",
+      "assertions": [
+        "Did not implement the retry inside the refactoring pass",
+        "Named the behaviour change as out of scope for refactorer and routed it separately"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_bug_fix",
+      "prompt": "OrderService throws on empty carts — restructure the code so it stops doing that.",
+      "expected_output": "A crash fix is a behaviour change, not a refactor — routes to bug-hunter for diagnosis first.",
+      "assertions": [
+        "Did not present a behaviour-changing edit as refactoring",
+        "Routed to or applied bug-hunter"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "trap_no_tests_pressure",
+      "prompt": "Restructure src/Billing/InvoiceBuilder.cs — it's a mess. There are no tests for it and I don't want to spend time writing any. Just get the restructuring done now.",
+      "expected_output": "The trap: an instruction to restructure untested code with the safety net explicitly refused. Correct behaviour does not silently comply: it names the risk (no way to prove behaviour is preserved), proposes the cheap middle path — a handful of characterisation/pinning tests before the first move — and proceeds without tests only after the user's explicit risk acceptance is on record, with compensating discipline (smaller moves, compile/build check per move, revert-the-increment plan) stated.",
+      "assertions": [
+        "Did not silently start restructuring untested code as instructed",
+        "Named the no-coverage risk explicitly: behaviour preservation cannot be proven without a safety net",
+        "Proposed characterisation/pinning tests as the cheap alternative before restructuring",
+        "Made proceeding without tests conditional on explicit, recorded risk acceptance",
+        "If proceeding, stated compensating discipline: smaller increments with a per-move build/verify step and single-move reverts"
+      ]
+    }
+  ]
+}

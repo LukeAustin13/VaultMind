@@ -1,0 +1,12 @@
+{
+  "vaultPath": "C:\\Path\\To\\Your\\ObsidianVault",
+  "vaultName": "MyVault",
+  "indexPath": ".mindvault/index.sqlite",
+  "snapshotPath": ".mindvault/snapshots",
+  "enableWatcher": false,
+  "defaultArchiveFolder": "99_Archive",
+  "scanStalenessSeconds": 60,
+  "verifyContentHash": false,
+  "snapshotRetentionDays": 30,
+  "writeLockStaleSeconds": 600
+}

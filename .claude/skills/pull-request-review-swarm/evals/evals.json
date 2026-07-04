@@ -1,0 +1,64 @@
+{
+  "skill_name": "pull-request-review-swarm",
+  "evals": [
+    {
+      "id": 1,
+      "name": "full_review_standard_pr",
+      "prompt": "PR #88 adds the new invoice-emailing feature - service class, controller endpoint, background job, config changes, about 600 lines. give it a full review before we merge",
+      "expected_output": "Classifies as Standard, dispatches all six passes as parallel subagents (or documents the inline fallback), consolidates and deduplicates findings, verifies every blocking candidate against the code (CONFIRMED/SUSPECTED, refuted ones dropped and counted), and issues a GREEN/AMBER/RED verdict with a ready-to-post PR comment.",
+      "assertions": [
+        "Classified PR size as Standard with a stated reason before any pass ran",
+        "Used parallel subagent dispatch when available, and stated the dispatch mode in the report",
+        "Subagent prompts forbade file modification and git operations",
+        "Every blocking finding carries CONFIRMED or SUSPECTED status from an orchestrator-level verification",
+        "Report states how many candidate findings were refuted and dropped",
+        "Verdict is GREEN/AMBER/RED and is justified by the verified findings",
+        "Suggested PR comment is ready to post without editing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fast_track_small_fix",
+      "prompt": "small PR, fixes the date formatting bug in the report header, 30 lines. run the swarm on it anyway, boss wants everything reviewed",
+      "expected_output": "Classifies as Fast-track (single concern, <100 lines, no auth/data/infra) and runs ONLY passes 1 (correctness) and 3 (security/config) — does not burn five subagents on a 30-line formatting fix. Verdict still issued with verification of any blockers.",
+      "assertions": [
+        "Classified as Fast-track with the reason stated",
+        "Ran only passes 1 and 3, not all six",
+        "Still produced the full report structure with a verdict",
+        "Any blocking finding was verified before reporting"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "verification_kills_false_positives",
+      "prompt": "run the review swarm on PR #91 (the caching layer change). heads up: last time the review flagged a bunch of stuff that turned out to be fine and the team is losing faith in these reviews",
+      "expected_output": "A review where the verification stage visibly earns its keep: blocking candidates are independently re-checked against the code, refuted ones dropped with a count in the footer, and remaining findings carry evidence a skeptical reader can follow. The verdict is calibrated rather than defensive.",
+      "assertions": [
+        "Each blocking candidate was re-verified by the orchestrator, not by the pass that raised it",
+        "Refuted candidates were dropped, not downgraded to nits, and the refuted count is reported",
+        "Remaining blockers carry traceable evidence (file:line plus the checked code path)",
+        "Did not respond to the false-positive history by suppressing real findings"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "should_not_trigger_single_concern",
+      "prompt": "just check whether the new repository methods in this diff have any N+1 query problems",
+      "expected_output": "Does NOT orchestrate the swarm. A single named concern routes to the data-access-reviewer or performance-reviewer agent directly.",
+      "assertions": [
+        "Did not run multiple review passes or produce the swarm report format",
+        "Routed to the appropriate single reviewer agent"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "should_not_trigger_ci_failure",
+      "prompt": "the PR build is red on the lint stage, can you sort that out before review",
+      "expected_output": "Does NOT start a review. Routes to ci-triage to diagnose the pipeline failure first — reviewing a PR that does not build is premature.",
+      "assertions": [
+        "Did not begin review passes",
+        "Routed to or applied ci-triage"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "skill_name": "planner",
+  "evals": [
+    {
+      "id": 1,
+      "name": "multi_system_feature_plan",
+      "prompt": "we want customers to be able to schedule recurring orders - needs UI on the account page, new api endpoints, a table or two, and something that actually places the orders on schedule. plan it out",
+      "expected_output": "A Full plan that discovers the actual codebase first, frames the problem in user terms, puts a walking-skeleton slice in the first build phase (one hardcoded recurring order flowing UI-to-scheduler end-to-end), sequences schema before consumers, assigns each phase a skill and verifiable acceptance criteria, runs a pre-mortem that changes the plan, and names the first action.",
+      "assertions": [
+        "Read relevant parts of the actual codebase before writing phases (discovery evidence in the plan)",
+        "First build phase is a thin end-to-end slice across UI/API/data/scheduler, not a completed single layer",
+        "Every phase's tasks name at least one real file, type, or system from discovery",
+        "Each phase has verifiably testable acceptance criteria, not 'it works'",
+        "Pre-mortem section present with concrete causes, each converted to a spike, checkpoint, or monitored risk",
+        "Unknowns became early spikes rather than silent assumptions",
+        "First action is specific enough to start immediately"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "small_task_stays_lightweight",
+      "prompt": "plan out adding a csv export button to the orders grid, backend endpoint already exists",
+      "expected_output": "A Lightweight plan - goal, 3-7 concrete steps, 2-3 risks, first action. No phase tables, no cross-cutting concerns matrix, no ADRs for a one-day UI task.",
+      "assertions": [
+        "Used the Lightweight format, not the Full format",
+        "Steps are concrete and reference the actual grid/component involved",
+        "Did not generate spikes, phase tables, or a cross-cutting concerns matrix for a trivial task"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "premortem_changes_the_plan",
+      "prompt": "plan the migration of our file storage from local disk to S3-compatible storage, ~2TB of user uploads, zero downtime allowed",
+      "expected_output": "A Full plan where the pre-mortem visibly reshapes the work: concrete failure causes (e.g. copy takes longer than the cutover window; URL scheme breaks cached links; egress costs explode) each become a spike, a checkpoint before the irreversible cutover, or a monitored risk with an early-warning signal. Mandatory checkpoint marked before any destructive step.",
+      "assertions": [
+        "Pre-mortem causes are concrete and scenario-specific, not generic ('delays', 'scope creep')",
+        "Each pre-mortem cause traces to a visible plan change (spike, checkpoint, or named risk with signal)",
+        "The irreversible cutover step has a mandatory user checkpoint before it",
+        "Rollback/reversal strategy is addressed for the migration"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "should_not_trigger_research_needed",
+      "prompt": "not sure whether we should build this on webhooks or polling, what's the state of the art for shopify integrations these days?",
+      "expected_output": "Does NOT produce a plan around an unresolved decision. Routes to researcher first - the question is time-sensitive and undecided; planning follows the research verdict.",
+      "assertions": [
+        "Did not produce a staged plan",
+        "Routed to or applied the researcher skill for the undecided, time-sensitive question"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "plan_update_mode_mid_execution",
+      "prompt": "phase 2 is done but it turns out the vendor api can't filter by date like the plan assumed, everything after phase 2 leaned on that. what now?",
+      "expected_output": "Plan Update Mode, not a rewrite: names the change event and invalidated assumption, identifies affected phases, classifies the resolution, updates only what changed, records the decision, and restates the new first action.",
+      "assertions": [
+        "Used Plan Update Mode output, not a brand-new full plan document",
+        "Named the invalidated assumption and the phases it affects",
+        "Recorded the old-vs-new approach in the decision log",
+        "Restated a new specific first action"
+      ]
+    }
+  ]
+}

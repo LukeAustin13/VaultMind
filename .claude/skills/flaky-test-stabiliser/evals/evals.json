@@ -1,0 +1,38 @@
+{
+  "skill_name": "flaky-test-stabiliser",
+  "evals": [
+    {
+      "id": 1,
+      "name": "intermittent_ci_failure",
+      "prompt": "OrderSyncTests.Concurrent_updates_preserve_count fails maybe 1 run in 6 on CI, always passes locally. Make it stop.",
+      "expected_output": "Reproduces the flake first (looped runs until at least one failure), classifies the cause (shared state/timing/ordering/environment), applies the matching deterministic fix, and proves it with repeated green runs (e.g. 20/20), stating the run count and conditions.",
+      "assertions": [
+        "Attempted reproduction with looped runs before proposing any fix",
+        "Classified the flakiness cause explicitly before fixing",
+        "The fix is deterministic — no retry attributes, no sleeps, no rerun-until-green",
+        "Verification states the run count and conditions, accepted only at 100% pass",
+        "If a run failed during verification, returned to reclassification instead of shipping"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "should_not_trigger_deterministic_failure",
+      "prompt": "This test fails every single run with the same assertion error since yesterday's merge. Fix it.",
+      "expected_output": "Does NOT treat this as flakiness. A test that fails every run for the same reason is a deterministic failure — routes to bug-hunter.",
+      "assertions": [
+        "Did not run the flake reproduction loop",
+        "Routed to or applied bug-hunter (hypothesis-driven diagnosis)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_suite_design",
+      "prompt": "Our integration tests keep interfering with each other's database state. Design a proper isolation strategy for the suite.",
+      "expected_output": "Does NOT patch a single test. Suite-level fixture and isolation design routes to integration-test-designer.",
+      "assertions": [
+        "Did not apply a single-test deterministic fix",
+        "Routed to or applied integration-test-designer (fixtures, isolation strategy)"
+      ]
+    }
+  ]
+}

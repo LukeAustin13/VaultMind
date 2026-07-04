@@ -1,0 +1,62 @@
+{
+  "skill_name": "researcher",
+  "evals": [
+    {
+      "id": 1,
+      "name": "library_choice_casual",
+      "prompt": "need to pick a background job library for our .NET 8 api, hangfire vs quartz vs whatever else is good these days. we're on postgres and want a dashboard",
+      "expected_output": "A Comparative-mode research brief. Verifies current library status against live sources (staleness gate — 'these days' is explicitly time-sensitive), builds an options matrix scored against the stated constraints (.NET 8, Postgres storage, dashboard), includes a risk register, a committed recommendation, and a 'What I Would Do' section, then hands off to a design/implementation skill.",
+      "assertions": [
+        "Treated the question as time-sensitive and verified library status/versions against live sources rather than answering purely from training knowledge",
+        "Options table evaluates against the user's actual constraints (Postgres, dashboard, .NET 8), not abstractly",
+        "Every finding carries a source and a VERIFIED/ASSUMED/OPINION label",
+        "Risk register present with evidence-backed risks (e.g. maintenance activity, licensing changes) or an explicit 'None identified'",
+        "'What I Would Do' section makes one committed first-person call, not a restatement of options",
+        "Named a handoff skill and what it needs from the brief"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fact_check_stale_claim",
+      "prompt": "a blog post I read says you can't use output caching with authenticated endpoints in ASP.NET Core, is that actually true?",
+      "expected_output": "A Quick-mode fact-check that treats the claim as version-dependent, checks current official documentation, dates the finding, and answers directly with the version context — including whether the blog's claim was ever true and for which versions.",
+      "assertions": [
+        "Checked official Microsoft documentation rather than settling the question from training knowledge or other blogs",
+        "Answer is version-qualified (states which ASP.NET Core versions the answer applies to)",
+        "Distinguishes what the source claims from what the evidence shows",
+        "If verification was impossible, the answer is explicitly flagged as unverified training knowledge rather than presented as fact"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "honest_about_unverified",
+      "prompt": "quick one, what's the current rate limit on the GitHub REST API for authenticated requests? no need to go deep",
+      "expected_output": "Either a live-verified answer with source and date, or — if not verified — the training-knowledge figure explicitly flagged as possibly stale with a pointer to the authoritative docs page. Never an unflagged number presented as current fact, even though the user said 'no need to go deep'.",
+      "assertions": [
+        "Did not present a rate-limit figure as current without either live verification or an explicit staleness flag",
+        "Named the authoritative source (GitHub docs) either as the verification or as where to confirm",
+        "Stayed Quick mode — did not spawn a multi-agent deep research run for a single fact"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "should_not_trigger_plan_request",
+      "prompt": "ok we're going with Hangfire, break the integration down into phases for me",
+      "expected_output": "Does NOT run a research pass. The decision is made; routes to planner to produce the staged plan.",
+      "assertions": [
+        "Did not produce a research brief or re-open the already-made decision",
+        "Routed to or applied the planner skill"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "should_not_trigger_stable_knowledge",
+      "prompt": "what's the time complexity of quicksort in the worst case and why?",
+      "expected_output": "A direct answer from training knowledge (O(n²), pivot degeneration) — time-stable fact, no web research, no research brief scaffolding.",
+      "assertions": [
+        "Answered directly without spawning research subagents or web searches",
+        "Did not wrap the answer in the research brief format"
+      ]
+    }
+  ]
+}

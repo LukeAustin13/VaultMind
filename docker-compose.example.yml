@@ -1,0 +1,55 @@
+# MindVault Docker Compose example.
+#
+#   1. Copy this file to docker-compose.yml (it stays out of git if you keep the example name
+#      committed and your copy local — or just edit in place on a dedicated host).
+#   2. Point the volume at your local Obsidian vault copy.
+#   3. Change MINDVAULT_MCP_AUTH_TOKEN.
+#   4. docker compose up -d --build
+#
+# CLI commands through the same image (entrypoint dispatch — no dotnet incantations):
+#   docker compose run --rm mindvault status
+#   docker compose run --rm mindvault init
+#   docker compose run --rm mindvault scan
+#   docker compose run --rm mindvault search "architecture"
+#   docker compose run --rm mindvault doctor
+# Or against the running server container:
+#   docker compose exec mindvault mindvault status
+
+services:
+  mindvault:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mindvault
+    restart: unless-stopped
+    environment:
+      # The vault is always /vault inside the container; the volume below decides what that is.
+      MINDVAULT_VAULT_PATH: /vault
+      MINDVAULT_MCP_TRANSPORT: http
+      # 0.0.0.0 is correct INSIDE the container; the `ports:` mapping controls real exposure.
+      MINDVAULT_MCP_HOST: 0.0.0.0
+      MINDVAULT_MCP_PORT: "7777"
+      # REQUIRED for HTTP mode. Change it. Clients send: Authorization: Bearer <token>
+      # To keep the token out of this file, delete this line and use a Docker secret instead:
+      #   MINDVAULT_MCP_AUTH_TOKEN_FILE: /run/secrets/mindvault_token
+      # (declare the secret under `secrets:` at top level and in this service)
+      MINDVAULT_MCP_AUTH_TOKEN: change-this-token
+    volumes:
+      # Host Obsidian vault -> /vault. The SQLite index, snapshots and backups live inside
+      # the vault under .mindvault/, so they stay with the vault on the host.
+      # Raspberry Pi example:   /mnt/obsidian/MindVault:/vault
+      # Windows example:        C:/Users/you/Obsidian/MyVault:/vault
+      - /path/to/your/obsidian-vault:/vault
+    ports:
+      # SAFE DEFAULT: localhost only. Nothing outside this machine can reach the MCP endpoint.
+      - "127.0.0.1:7777:7777"
+      # LAN-only access is an explicit opt-in: replace the line above with your host's LAN
+      # address so only that interface is bound, e.g.:
+      #   - "192.168.1.77:7777:7777"
+      # Do NOT use a bare "7777:7777" — it binds every interface, which on some hosts means
+      # more exposure than you intend. Never expose MindVault to the public internet.
+
+    # The image runs as the non-root `app` user. If your vault directory is owned by another
+    # uid (typical on a Raspberry Pi where the vault belongs to uid 1000), run the container
+    # as that user so MindVault can write .mindvault/, snapshots and notes:
+    #   user: "1000:1000"

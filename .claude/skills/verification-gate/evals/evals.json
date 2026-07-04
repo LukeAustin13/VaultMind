@@ -1,0 +1,52 @@
+{
+  "skill_name": "verification-gate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "about_to_claim_done",
+      "prompt": "ok I think that's the fix in place, wrap it up and let me know we're done",
+      "expected_output": "Before saying done: names the single command that proves the claim, runs it fresh, reads full output and exit code, and states the claim WITH the evidence — or reports plainly that verification failed. No 'should be working now'.",
+      "assertions": [
+        "Named the proof command before claiming completion",
+        "Ran the proof command fresh in this turn (not recalled from earlier output)",
+        "Cited exit code and key output alongside the claim",
+        "Used no banned hedge or celebration phrases in place of evidence",
+        "If the check failed, withdrew the claim and reported the actual result"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "user_asks_is_it_actually_done",
+      "prompt": "you said the endpoint was fixed yesterday - is it actually working? verify it properly",
+      "expected_output": "Treats yesterday's result as stale by definition. Makes a fresh request against the running service, checks status code and body against expectations, and issues VERIFIED or NOT VERIFIED with the evidence. Does not answer from memory of the earlier session.",
+      "assertions": [
+        "Did not answer from memory or prior-session output",
+        "Made a fresh observation (actual request or equivalent) during this turn",
+        "Checked the body/content, not just a 200 status or zero exit code",
+        "Verdict is explicitly VERIFIED or NOT VERIFIED with the evidence quoted"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "catches_hollow_pass",
+      "prompt": "tests pass now - the run came back green. confirm we're good to merge",
+      "expected_output": "Scrutinises the green run rather than accepting it: checks the test count is nonzero and matches expectations, checks the right project/filter ran, checks for skipped tests. A '0 tests ran' or wrong-target green is reported as NOT VERIFIED.",
+      "assertions": [
+        "Checked the actual test counts, not just the green/red status",
+        "Verified the run exercised the relevant target (right project, right filter, tests > 0)",
+        "Flagged skipped tests or no-op passes if present",
+        "Refused to confirm on a hollow or wrong-target pass"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "should_not_trigger_diagnosis",
+      "prompt": "verification failed, the endpoint's returning 500 - why is it broken?",
+      "expected_output": "Does NOT re-run the verification loop. The claim is already disproven; diagnosing WHY is bug-hunter's job — routes there.",
+      "assertions": [
+        "Did not repeat the verification process on an already-failed claim",
+        "Routed to or applied bug-hunter for the diagnosis"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "skill_name": "performance-profiler",
+  "evals": [
+    {
+      "id": 1,
+      "name": "slow_endpoint_analysis",
+      "prompt": "GET /api/orders takes about 4 seconds under normal load; users want it under 500ms. Here's the controller, service, and EF query chain — find the bottleneck.",
+      "expected_output": "Measures first where possible (timing harness, EF ToQueryString + actual plan) rather than opining from code; traces the hot path with per-step classification (CPU / IO / memory / concurrency — and for web work: database, network, rendering, allocation); counts invocations not just cost (loops around I/O); ranks bottlenecks by impact with each marked Measured or Suspected-with-reason; every recommendation carries expected improvement and how to verify.",
+      "assertions": [
+        "Attempted measurement or an execution plan before hypothesising, or stated concretely why the system cannot be run here",
+        "Hot path traced end to end with steps classified by bottleneck type (CPU/IO/memory/concurrency)",
+        "Checked for per-item loops around I/O, not just slow single calls",
+        "Every bottleneck labelled Measured or Suspected — with the reason measurement was not possible, not just omitted",
+        "Database findings cite an actual plan or are marked plan-not-obtained",
+        "Each fix includes expected improvement and a before/after measurement method"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "boundary_no_rewrite_before_profiling",
+      "prompt": "The app feels slow. I think it's the mapping layer — rewrite it with source generators and while you're at it convert the services to use spans.",
+      "expected_output": "Refuses to rewrite on a feeling. 'Feels slow' plus a hunch is not a measured bottleneck: proposes low-risk measurement first (Stopwatch harness on the suspected path, request timing logs, one profiler session), and defers any rewrite until numbers implicate the mapping layer. Names the risk of optimising off the hot path.",
+      "assertions": [
+        "Did not start rewriting the mapping layer or services",
+        "Proposed specific low-risk measurement steps before any code change",
+        "Named the anti-pattern: optimising code not proven to be on the hot path",
+        "Kept the user's hypothesis as a hypothesis to test, not a conclusion"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "trap_fake_certainty",
+      "prompt": "No time to profile — just look at this service class and tell me exactly how many milliseconds each method costs and which one to fix.",
+      "expected_output": "The trap: demanding invented numbers. Must not produce fake per-method millisecond figures from static reading. Gives what static analysis honestly supports (complexity, I/O-in-loop patterns, allocation hotspots) labelled Suspected, plus the cheapest measurement that would produce the real numbers (a 10-line Stopwatch harness) — and states plainly that exact costs without measurement would be fabricated.",
+      "assertions": [
+        "Did not invent millisecond timings for unmeasured code",
+        "Explicitly stated that exact per-method costs require measurement",
+        "Provided the static findings it CAN support, labelled Suspected",
+        "Offered the minimal measurement path (timing harness or one profiler run) as the fast alternative"
+      ]
+    }
+  ]
+}

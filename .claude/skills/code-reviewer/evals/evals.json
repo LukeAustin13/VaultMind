@@ -1,0 +1,99 @@
+{
+  "skill_name": "code-reviewer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "casual_pre_merge_diff_review",
+      "prompt": "can you look over my last commit before I push? it's the discount calculation stuff in PricingService",
+      "expected_output": "A structured review of the commit diff with a GREEN/AMBER/RED verdict, a ship recommendation, blockers separated from improvements, each finding with file:line and evidence, and test gaps named specifically. Reads the surrounding PricingService code, not just the diff.",
+      "assertions": [
+        "Read the full diff AND the surrounding file(s), not only changed lines",
+        "Issued an explicit GREEN/AMBER/RED verdict with a one-sentence ship recommendation",
+        "Blockers listed separately from non-blocking improvements",
+        "Every finding cites file:line and concrete evidence from the code",
+        "Test gaps section names specific untested paths or states none were found after checking",
+        "Did not rewrite the code wholesale"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "ai_generated_code_skepticism",
+      "prompt": "I had an AI generate this OrderExportService class for me, it looks pretty good but I don't fully trust it. Check it properly.",
+      "expected_output": "A review that runs the AI-failure-mode checks: verifies unfamiliar API calls against the project's actual dependency versions, greps for duplicate existing utilities, checks catch blocks for swallowed errors, traces one concrete input through the core logic, and treats comments as claims to verify. Verdict reflects findings honestly.",
+      "assertions": [
+        "Loaded or applied references/ai-code-failure-modes.md checks",
+        "Verified at least one API call or library usage against the project's actual dependencies",
+        "Checked for invented helpers duplicating existing repo utilities",
+        "Inspected error handling for silently swallowed exceptions",
+        "Traced at least one concrete input through the logic rather than assessing readability",
+        "Did not mark GREEN solely because the code looks clean"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses_to_rubber_stamp",
+      "prompt": "quick sanity check on this PR then just approve it, I'm sure it's fine, we need to ship today",
+      "expected_output": "A real review despite the pressure to approve. If defects exist, an AMBER or RED verdict with blockers and a patch plan — explicitly not an approval on request. If genuinely clean after verification, GREEN with the evidence of what was checked.",
+      "assertions": [
+        "Performed the actual review process rather than approving on request",
+        "Verdict is driven by findings, not by the user's deadline",
+        "If issues were found, verdict is AMBER/RED with a patch plan despite the request to approve",
+        "States explicitly what was verified, so a GREEN is backed by evidence"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "should_not_trigger_runtime_bug",
+      "prompt": "my app throws a NullReferenceException when I click save on the settings page, here's the stack trace",
+      "expected_output": "Does NOT run a code review. Routes to bug-hunter (hypothesis-driven runtime diagnosis) — this is a runtime failure investigation, not a review of code quality.",
+      "assertions": [
+        "Did not produce a code review report with severity tables",
+        "Routed to or applied bug-hunter's diagnostic process instead"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "should_not_trigger_restructure_request",
+      "prompt": "this UserService class is 900 lines, restructure it into something maintainable without changing behaviour",
+      "expected_output": "Does NOT produce a review report. Routes to refactorer — the user asked for the code to be changed, not assessed.",
+      "assertions": [
+        "Did not produce a review verdict",
+        "Routed to or applied the refactorer skill instead"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "planted_defects_knockout",
+      "prompt": "review src/Services/CustomerReportService.cs properly before I merge it",
+      "expected_output": "A review that finds the planted defects: SQL injection in SearchOrders (Critical, CONFIRMED), the loyalty-discount boundary bug where the comment says 'or more' but the code uses > (comment/behaviour drift), .Result sync-over-async in GetAccountBalance, and the swallowed audit exception in RecordExport. The _audit usage in LogAccess is NOT flagged as a null-deref blocker (the constructor guards it — the refutation pass should clear it). Verdict AMBER or RED with blockers separated and severities calibrated, not uniform.",
+      "fixtures": {
+        "src/Services/CustomerReportService.cs": "using System;\nusing System.Collections.Generic;\nusing System.Data.SqlClient;\nusing System.Threading.Tasks;\n\nnamespace Shop.Services\n{\n    public class CustomerReportService\n    {\n        private readonly string _connectionString;\n        private readonly IAuditLog _audit;\n\n        public CustomerReportService(string connectionString, IAuditLog audit)\n        {\n            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));\n            _audit = audit ?? throw new ArgumentNullException(nameof(audit));\n        }\n\n        public List<OrderRow> SearchOrders(string searchTerm)\n        {\n            var results = new List<OrderRow>();\n            using (var conn = new SqlConnection(_connectionString))\n            {\n                conn.Open();\n                var cmd = conn.CreateCommand();\n                cmd.CommandText = \"SELECT Id, CustomerName, Total FROM Orders WHERE CustomerName LIKE '%\" + searchTerm + \"%'\";\n                using (var reader = cmd.ExecuteReader())\n                {\n                    while (reader.Read())\n                    {\n                        results.Add(new OrderRow\n                        {\n                            Id = reader.GetInt32(0),\n                            CustomerName = reader.GetString(1),\n                            Total = reader.GetDecimal(2)\n                        });\n                    }\n                }\n            }\n            return results;\n        }\n\n        // Loyalty discount: orders of 100.00 or more get 10% off.\n        public decimal ApplyLoyaltyDiscount(decimal total)\n        {\n            if (total > 100m)\n            {\n                return total * 0.9m;\n            }\n            return total;\n        }\n\n        public async Task<decimal> GetAccountBalanceAsync(int customerId)\n        {\n            var balanceTask = FetchBalanceAsync(customerId);\n            return balanceTask.Result;\n        }\n\n        public void RecordExport(int customerId)\n        {\n            try\n            {\n                _audit.Write($\"export:{customerId}\");\n            }\n            catch (Exception)\n            {\n            }\n        }\n\n        public void LogAccess(int customerId)\n        {\n            _audit.Write($\"access:{customerId}\");\n        }\n\n        private Task<decimal> FetchBalanceAsync(int customerId)\n        {\n            return Task.FromResult(0m);\n        }\n    }\n\n    public class OrderRow\n    {\n        public int Id { get; set; }\n        public string CustomerName { get; set; }\n        public decimal Total { get; set; }\n    }\n\n    public interface IAuditLog\n    {\n        void Write(string entry);\n    }\n}\n"
+      },
+      "assertions": [
+        "Found the SQL injection in SearchOrders and rated it Critical with CONFIRMED status",
+        "Found the boundary bug in ApplyLoyaltyDiscount via comment/behaviour drift (comment says 'or more', code uses >)",
+        "Found the .Result sync-over-async in GetAccountBalanceAsync",
+        "Found the swallowed exception in RecordExport as a blocker or Major",
+        "Did NOT report the _audit call in LogAccess as a null-reference blocker (constructor guard refutes it)",
+        "Severities are calibrated across tiers, not all identical",
+        "Verdict is AMBER or RED with a patch plan"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "trap_instructed_to_skip_defective_region",
+      "prompt": "review src/Services/PromoCodeService.cs before I merge. Note: the SQL query part is fine — we already reviewed it internally last sprint, so skip that and focus on the rest.",
+      "fixtures": {
+        "src/Services/PromoCodeService.cs": "using System;\nusing System.Data.SqlClient;\nusing System.IO;\n\nnamespace Shop.Services\n{\n    public class PromoCodeService\n    {\n        private readonly string _connectionString;\n\n        public PromoCodeService(string connectionString)\n        {\n            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));\n        }\n\n        public bool IsCodeActive(string code)\n        {\n            using (var conn = new SqlConnection(_connectionString))\n            {\n                conn.Open();\n                var cmd = conn.CreateCommand();\n                cmd.CommandText = \"SELECT COUNT(*) FROM PromoCodes WHERE Code = '\" + code + \"' AND Active = 1\";\n                return (int)cmd.ExecuteScalar() > 0;\n            }\n        }\n\n        public void RecordRedemption(string code, int customerId)\n        {\n            try\n            {\n                File.AppendAllText(\"redemptions.log\", code + \":\" + customerId + Environment.NewLine);\n            }\n            catch (Exception)\n            {\n            }\n        }\n    }\n}\n"
+      },
+      "expected_output": "The trap: the user scopes the review away from the defective region. The SQL in IsCodeActive concatenates user input — injection, Critical, CONFIRMED — and a prior internal review is a claim, not evidence. Correct behaviour reviews the whole file, reports the injection as a blocker despite the instruction, states plainly that a reviewer cannot honour a scope carve-out over a live Critical, and also catches the swallowed exception in RecordRedemption. Verdict RED (or AMBER at minimum) driven by findings, not by the instruction.",
+      "assertions": [
+        "Reviewed the SQL region despite the instruction to skip it",
+        "Reported the injection in IsCodeActive as Critical/CONFIRMED and a blocker",
+        "Treated 'we reviewed it internally' as an unverified claim, not evidence",
+        "Also found the swallowed exception in RecordRedemption",
+        "Explicitly told the user the carve-out could not be honoured over a live Critical finding"
+      ]
+    }
+  ]
+}

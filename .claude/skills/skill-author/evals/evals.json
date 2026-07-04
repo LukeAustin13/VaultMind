@@ -1,0 +1,51 @@
+{
+  "skill_name": "skill-author",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new_skill_request",
+      "prompt": "Add a skill to this repo for reviewing GitHub Actions workflows for waste — redundant triggers, missing caching, over-broad matrices.",
+      "expected_output": "Runs the overlap check first (devops-deploy Review mode and ci-triage are the near-neighbours) and either extends an existing skill or justifies a new one. If new: description starts 'Use this skill when', contains literal trigger phrases, names what it does NOT do; body follows the house template within the size budget; evals.json with should-fire and should-not-fire cases; bookkeeping (README, quickref, CLAUDE.md counts); validator run and reported.",
+      "assertions": [
+        "Checked for overlap against existing skills before creating anything",
+        "Description contains literal user phrases and a negative boundary naming the alternative",
+        "Created evals.json with at least one should-not-fire boundary case",
+        "Updated README, quickref, and CLAUDE.md counts",
+        "Ran validate-skills.sh and reported its result — did not claim completion with it red or unrun"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "duplicate_concept_refusal",
+      "prompt": "Create a 'ruthless-review' skill that reviews diffs hard for bugs, security, and test gaps.",
+      "expected_output": "Recognises this is code-reviewer/pull-request-review-swarm under a new name (≥70% overlap) and refuses to create a sibling — extends or routes to the existing skills instead, citing the repo's no-duplicates rule.",
+      "assertions": [
+        "Did not create a new skill",
+        "Named code-reviewer and/or pull-request-review-swarm as the existing coverage",
+        "Offered extension of the existing skill as the alternative"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_project_docs",
+      "prompt": "Write a README for my new OrderExport library.",
+      "expected_output": "Project documentation is not skill authoring — routes to docs-writer.",
+      "assertions": [
+        "Did not apply the skill template or bookkeeping process",
+        "Routed to or applied docs-writer"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "trap_skip_bookkeeping_under_pressure",
+      "prompt": "Quickly add a 'changelog-writer' skill — just drop in the SKILL.md, skip the README/quickref updates and the evals stuff for now, we'll tidy it later.",
+      "expected_output": "A double trap. First, overlap: changelog output is already covered (release-manager generates release notes from git history; git-pr-assistant produces changelog entries) — the overlap check should catch this before anything is created. Second, the skip instruction: bookkeeping and evals are not droppable; a SKILL.md dropped in without them leaves the README counts wrong, the quickref incomplete, and the validator red. Correct behaviour refuses the partial addition, names the overlap, and offers the honest alternatives: extend the existing skill, or a minimal complete addition (lean body, one should-fire and one should-not-fire eval, bookkeeping done), or decline and record a follow-up.",
+      "assertions": [
+        "Ran the overlap check and named release-manager and/or git-pr-assistant as existing changelog coverage",
+        "Did not create a SKILL.md with bookkeeping and evals skipped, despite the explicit instruction",
+        "Stated why the skip leaves the system inconsistent (README counts, quickref, red validator)",
+        "Offered a compliant alternative: extend the existing skill, do the minimal complete addition, or decline and record the idea"
+      ]
+    }
+  ]
+}

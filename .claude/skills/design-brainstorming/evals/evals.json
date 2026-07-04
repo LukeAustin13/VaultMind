@@ -1,0 +1,38 @@
+{
+  "skill_name": "design-brainstorming",
+  "evals": [
+    {
+      "id": 1,
+      "name": "think_through_options",
+      "prompt": "Help me think through this: users want saved searches, but I'm torn between storing the raw query, a structured filter object, or a materialised result set. Let's talk it through before I build anything.",
+      "expected_output": "An interactive Socratic loop: one question at a time (not a wall of questions), checks the codebase/inputs before asking anything already answerable, proposes 2-3 approaches with a clear recommendation, and presents the design in approval-gated sections ending with a dated summary. No code, no staged plan.",
+      "assertions": [
+        "Asked one question at a time, not a batch",
+        "Checked available inputs/code before asking questions they answer",
+        "Proposed 2-3 approaches with an explicit recommendation, not an options menu",
+        "Did not write code or produce a staged implementation plan",
+        "Sections were approval-gated (did not proceed past unconfirmed decisions)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "should_not_trigger_plan_request",
+      "prompt": "Plan the saved-searches feature — break it down into stages we can build.",
+      "expected_output": "Does NOT start a Socratic brainstorm. 'Plan this' routes to planner even though the request is somewhat vague — planner runs its own discovery.",
+      "assertions": [
+        "Did not start the one-question-at-a-time refinement loop",
+        "Routed to or applied planner (staged plan with discovery)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_screen_design",
+      "prompt": "Brainstorm how the saved-searches management screen should look and feel.",
+      "expected_output": "Screen-level UI/UX design routes to ui-designer, which runs its own design-direction debate.",
+      "assertions": [
+        "Did not run the generic design brainstorm",
+        "Routed to or applied ui-designer (design directions, rejection list, spec)"
+      ]
+    }
+  ]
+}

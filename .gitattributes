@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must stay LF (a CRLF shebang breaks them in containers)
+*.sh text eol=lf
+
+# Fixture vault files are parsed byte-for-byte in tests; keep them deterministic
+tests/MindVault.Tests/fixtures/** text eol=lf

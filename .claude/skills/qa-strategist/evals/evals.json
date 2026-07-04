@@ -1,0 +1,40 @@
+{
+  "skill_name": "qa-strategist",
+  "evals": [
+    {
+      "id": 1,
+      "name": "feature_test_strategy",
+      "prompt": "I'm building an order export to CSV feature. What should we test before this ships?",
+      "expected_output": "A test strategy with verifiable acceptance criteria, test cases across levels (unit/integration/manual) covering happy path, edge cases (empty list, unicode), and error cases, regression checks for existing order endpoints, risk-based priorities, and an explicit 'not worth testing' list.",
+      "assertions": [
+        "Acceptance criteria are specific enough to verify pass/fail",
+        "Test cases span multiple levels with happy path, edge, and error cases",
+        "Regression checks name existing functionality that must not break",
+        "Priorities reflect risk, not exhaustiveness",
+        "Includes an explicit not-worth-testing section",
+        "Did not write actual test code"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "proportionality_small_fix",
+      "prompt": "One-line fix: the date formatter was using local time instead of UTC in the audit log. What testing does this need?",
+      "expected_output": "A proportional strategy — a handful of targeted cases (the UTC conversion, a timezone boundary, the regression on existing log format), not a 50-row table. Explicitly scopes down because the change is one line.",
+      "assertions": [
+        "Strategy is proportional to a one-line change (roughly 3-6 cases, not dozens)",
+        "Covers the timezone boundary edge case",
+        "Names the regression risk on existing audit log consumers"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_write_tests",
+      "prompt": "Write xUnit tests for the OrderExportService class.",
+      "expected_output": "Does NOT produce a test strategy document. Writing test code routes to test-writer.",
+      "assertions": [
+        "Did not produce an acceptance-criteria/strategy document",
+        "Routed to or applied test-writer (actual test code)"
+      ]
+    }
+  ]
+}

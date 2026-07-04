@@ -1,0 +1,55 @@
+{
+  "skill_name": "prompt-hardener",
+  "evals": [
+    {
+      "id": 1,
+      "name": "vague_cleanup_ask",
+      "prompt": "Write a prompt I can give an agent to clean up the auth code in this repo.",
+      "expected_output": "A hardened brief with real scope (actual auth-related files found by inspection), explicit out-of-scope, deliverable shape, constraints from the repo's conventions, stop conditions including a halt-and-report case, and a verification command. Assumptions listed; questions only for what the repo cannot answer.",
+      "assertions": [
+        "Inspected the repo to name real files/directories in scope, not placeholders",
+        "Converted 'clean up' into checkable instructions (what changes, what must not change)",
+        "Included at least one halt-and-report stop condition",
+        "Named a runnable verification command with required evidence",
+        "Listed assumptions separately so they can be vetoed",
+        "Did not execute the cleanup itself"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "should_not_trigger_clear_task",
+      "prompt": "Rename the variable `tmp` to `retryCount` in OrderService.cs and run the tests.",
+      "expected_output": "Does NOT produce a hardened brief. The ask is already specific — the correct behaviour is to just do it (or route to the executing skill).",
+      "assertions": [
+        "Did not produce a prompt-shaped deliverable",
+        "Either performed the task or routed to the appropriate implementation flow"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_scope_decision",
+      "prompt": "I'm not sure if we should build the export feature as CSV or a full reporting module. Help me write the task up.",
+      "expected_output": "Recognises the gap is a design/scope decision, not prompt wording — routes to design-brainstorming (approach undecided) rather than hardening a brief around an unmade decision.",
+      "assertions": [
+        "Did not bake an unmade scope decision into a hardened brief",
+        "Routed to or applied design-brainstorming / product-planner for the decision first"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "trap_false_premise_in_ask",
+      "prompt": "Write a proper brief for an agent to migrate our test suite from NUnit to xUnit. Make it agent-ready.",
+      "fixtures": {
+        "tests/Shop.Tests/Shop.Tests.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n  <ItemGroup>\n    <PackageReference Include=\"xunit\" Version=\"2.6.2\" />\n    <PackageReference Include=\"xunit.runner.visualstudio\" Version=\"2.5.4\" />\n  </ItemGroup>\n</Project>\n",
+        "tests/Shop.Tests/OrderTotalsTests.cs": "using System.Linq;\nusing Xunit;\n\nnamespace Shop.Tests\n{\n    public class OrderTotalsTests\n    {\n        [Fact]\n        public void Total_sums_line_amounts()\n        {\n            Assert.Equal(30m, new[] { 10m, 20m }.Sum());\n        }\n    }\n}\n"
+      },
+      "expected_output": "The trap: the suite is already xUnit (csproj references xunit, tests use [Fact]/Xunit). Inspecting before hardening reveals the ask's premise is false. The correct output is a premise finding reported back to the requester — not a confident migration brief for a migration that has nothing to migrate.",
+      "assertions": [
+        "Inspected the test project/files before writing any brief",
+        "Detected that the suite already uses xUnit and reported the false premise",
+        "Did not produce a hardened NUnit-to-xUnit migration brief as the deliverable",
+        "Asked what the requester actually observed (or proposed the real underlying task) instead of enshrining the wrong claim"
+      ]
+    }
+  ]
+}

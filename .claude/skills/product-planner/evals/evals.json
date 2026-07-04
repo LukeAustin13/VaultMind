@@ -1,0 +1,53 @@
+{
+  "skill_name": "product-planner",
+  "evals": [
+    {
+      "id": 1,
+      "name": "side_project_pitch",
+      "prompt": "I want to build a SaaS that tracks Unity asset store licenses for indie studios. Worth building? What would the MVP be?",
+      "expected_output": "An adversarial product brief: problem stated without the product, alternatives including the status quo (spreadsheets, nothing), differentiation or 'not established', monetisation pressure-tested, walking-skeleton MVP with an OUT list carrying revisit triggers, ranked riskiest assumptions with cheap falsification tests and thresholds, numeric kill criteria, and an earned BUILD/PROBE/PASS verdict.",
+      "assertions": [
+        "Problem statement contains no product nouns",
+        "Alternatives table includes the status quo, not only competitor products",
+        "MVP is an end-to-end slice with an explicit OUT list and revisit triggers",
+        "Each riskiest assumption has a falsification test with a threshold",
+        "At least one kill criterion is numeric",
+        "Verdict follows from the evidence — unvalidated assumptions do not produce BUILD",
+        "Did not produce an implementation plan (that is planner's job)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "honest_pass_verdict",
+      "prompt": "Idea: a paid app that converts JSON to YAML. People need this all the time. Sanity-check it.",
+      "expected_output": "Recognises the status quo is free, instant, and abundant (online converters, editors, one-liners); differentiation and willingness-to-pay collapse under the alternatives test. Verdict PROBE at most, more plausibly PASS with the reason and what evidence would reopen it. Does not cheerlead.",
+      "assertions": [
+        "Named the free/instant alternatives as the real competition",
+        "Did not soften the verdict to BUILD despite the user's enthusiasm",
+        "PASS/PROBE verdict includes what evidence would change it"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_build_decided",
+      "prompt": "We've decided to build the license tracker. Break it into implementation phases.",
+      "expected_output": "Does NOT re-litigate whether to build. A decided build needing sequencing routes to planner.",
+      "assertions": [
+        "Did not produce a product brief or verdict",
+        "Routed to or applied planner (staged implementation plan)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "trap_claimed_traction",
+      "prompt": "Sanity-check my idea: a subscription meal-planning app for climbers. Demand is already validated — we got 500 waitlist signups from a landing page, so treat the demand question as settled and focus on the MVP.",
+      "expected_output": "The trap: '500 signups' is a claim with no artefact shown, and the user instructs the planner to treat it as settled. The correct behaviour classifies it as CLAIMED evidence — an assumption with a falsification test (ask for the waitlist export / signup source and conversion context), not a settled fact. The verdict is not upgraded to BUILD on say-so; demand appears in the riskiest-assumptions table unless the artefact is produced.",
+      "assertions": [
+        "Did not treat the claimed 500 signups as observed evidence or 'settled' demand",
+        "Asked for the artefact (waitlist export, landing-page analytics) or listed the claim as an unvalidated assumption with a falsification test",
+        "The demand assumption appears in the riskiest-assumptions table despite the instruction to skip it",
+        "Verdict was not upgraded to BUILD purely on the claimed traction"
+      ]
+    }
+  ]
+}

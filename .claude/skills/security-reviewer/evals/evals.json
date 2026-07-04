@@ -1,0 +1,39 @@
+{
+  "skill_name": "security-reviewer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "endpoint_exposure_review",
+      "prompt": "We're about to expose /api/admin/reports to the public internet behind our gateway. Is this safe to expose? Controller uses [Authorize], builds a SQL string from a 'filter' query param, and logs the full request including headers.",
+      "expected_output": "States the threat model first (public internet, authenticated-but-untrusted callers), verifies exploit paths rather than pattern-matching (the SQL concatenation is traced from param to sink → CONFIRMED; auth coverage checked against the actual policy), flags Authorization-header logging as sensitive-data exposure, and issues a GREEN/AMBER/RED deploy verdict justified by CONFIRMED findings.",
+      "assertions": [
+        "Threat model stated before findings",
+        "SQL injection traced source-to-sink and labelled CONFIRMED, not just pattern-matched",
+        "Header logging flagged as sensitive-data exposure",
+        "Every finding carries CONFIRMED or SUSPECTED status",
+        "GREEN/AMBER/RED verdict present and consistent with the confirmed findings"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no_finding_inflation",
+      "prompt": "Security review this internal-only health check endpoint: returns {status:'ok'} with no auth, bound to localhost in a container with no exposed port.",
+      "expected_output": "Applies the stated threat model (localhost-only, no exposure path) and does not inflate: no-auth-on-health-check is acceptable here and says so. Verdict GREEN with the reasoning, plus the condition that would change it (port exposure).",
+      "assertions": [
+        "Did not report no-auth as a finding given the localhost-only threat model",
+        "Verdict GREEN with the boundary condition that would invalidate it",
+        "No severity inflation to appear thorough"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "should_not_trigger_general_review",
+      "prompt": "Review OrderService.cs — I mostly care about readability and whether the async code is right.",
+      "expected_output": "General quality/correctness review routes to code-reviewer; this is not a security review request.",
+      "assertions": [
+        "Did not produce a security-verdict report",
+        "Routed to or applied code-reviewer"
+      ]
+    }
+  ]
+}
