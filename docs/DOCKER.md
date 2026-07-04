@@ -35,6 +35,21 @@ docker compose run --rm mindvault scan
 docker compose run --rm mindvault doctor
 ```
 
+## Updating later
+
+Pull updates without disturbing your setup:
+
+```bash
+./scripts/pi-update.sh
+```
+
+It fast-forwards the repo, rebuilds the container and confirms the server is live —
+refusing safely if it would clobber anything. Your vault, `docker-compose.yml`, config and
+tokens are never touched (they live outside the repo or are git-ignored). The rule that
+keeps it that way: edit your **copies** (`docker-compose.yml`,
+`config/mindvault.config.local.json`), never the tracked example files. Full details,
+including how to recover a diverged checkout: [UPDATING.md](UPDATING.md).
+
 ## CLI through Docker
 
 The image has an entrypoint dispatcher: the first argument `mcp` starts the MCP server,

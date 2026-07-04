@@ -131,7 +131,9 @@ MindVault runs as a container on any Linux/ARM64 or x64 Docker host — includin
 Pi — with the Obsidian vault mounted at `/vault` and the MCP server exposed as a LAN-only,
 token-protected HTTP endpoint (localhost binding by default). The same image runs CLI
 commands: `docker compose run --rm mindvault status`. Full guide, Pi walkthrough, buildx
-instructions and the security model: [docs/DOCKER.md](docs/DOCKER.md).
+instructions and the security model: [docs/DOCKER.md](docs/DOCKER.md). Updating a deployed
+Pi safely (pull never touches your vault, config or token): `./scripts/pi-update.sh` —
+see [docs/UPDATING.md](docs/UPDATING.md).
 
 ## MCP usage
 

@@ -1,10 +1,15 @@
 # MindVault Docker Compose example.
 #
-#   1. Copy this file to docker-compose.yml (it stays out of git if you keep the example name
-#      committed and your copy local — or just edit in place on a dedicated host).
+#   1. Copy this file to docker-compose.yml and edit THAT copy. docker-compose.yml is
+#      git-ignored, so your token and vault path stay local and `git pull` never touches
+#      them. Do NOT edit this example in place: it is tracked by git, so edits here cause
+#      merge conflicts on update and can leak your token into version control.
 #   2. Point the volume at your local Obsidian vault copy.
 #   3. Change MINDVAULT_MCP_AUTH_TOKEN.
 #   4. docker compose up -d --build
+#
+# Updating later is a one-liner that never touches your config or vault: scripts/pi-update.sh
+# (see docs/UPDATING.md).
 #
 # CLI commands through the same image (entrypoint dispatch — no dotnet incantations):
 #   docker compose run --rm mindvault status

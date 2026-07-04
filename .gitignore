@@ -1,14 +1,58 @@
-# Machine-local MindVault configuration (copy from mindvault.config.example.json)
+# ─── Secrets & machine-local config (NEVER commit) ────────────────────────────
+# Vault path (reveals your username/paths) and any local settings.
+# The committed example is config/mindvault.config.example.json — that one is safe.
 config/mindvault.config.local.json
+config/*.local.json
 
-# .NET build output
+# Real deployment compose: contains the MCP auth token, the real vault path and the
+# UID mapping. Only docker-compose.example.yml (sanitized) is committed.
+docker-compose.yml
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# Auth tokens and environment files (MINDVAULT_MCP_AUTH_TOKEN / *_AUTH_TOKEN_FILE)
+.env
+.env.*
+!.env.example
+*.token
+*.token.txt
+*.secret
+secrets/
+
+# ─── MindVault operational data (private content, fully rebuildable) ───────────
+# Snapshots and backups contain full note text; the index is a cache. These normally
+# live inside the vault (outside this repo), but guard against them ever landing here.
+.mindvault/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.mindvault-tmp
+
+# Any real vault or generated fixture vault accidentally created inside the repo.
+# (generate-fixture-vault defaults to a temp dir; this catches common in-repo names.)
+/vault/
+/vaults/
+*.vault/
+fixture-vault/
+generated-vault/
+
+# ─── .NET build output ────────────────────────────────────────────────────────
 bin/
 obj/
 artifacts/
 TestResults/
+*.trx
 
-# IDE
+# ─── Editors & IDEs ───────────────────────────────────────────────────────────
 .vs/
 .idea/
 *.user
 *.suo
+
+# Personal Claude Code settings (shared skills under .claude/ can still be committed)
+.claude/settings.local.json
+
+# ─── OS cruft (this repo syncs across Windows / Linux / macOS) ─────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
