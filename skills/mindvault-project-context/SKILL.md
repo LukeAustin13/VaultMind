@@ -33,18 +33,30 @@ Do NOT use when:
    for your handoff later. For a quick look without a session, call
    `mindvault_get_context_pack` (with the task description) or
    `mindvault_get_project_context` (`detailLevel: "brief"` for a glance, `"deep"` when the
-   project is unfamiliar).
+   project is unfamiliar). For a mode-shaped briefing (debugging, review, planning…) under
+   a hard char budget, `mindvault_build_context_capsule` — it adds do-not-repeat rules and
+   superseded-decision warnings. Before editing a specific file, `mindvault_get_work_context`
+   with that file path finds the memory that touches it.
+3.5. **Before any broad search or note-list sweep, get a route:**
+   `mindvault_build_route_card` (project + your goal) returns the 3–5 notes to read first
+   with reasons and token estimates, plus an explicit do-not-read list; for strict
+   tool-call discipline, `mindvault_build_read_plan` turns that into ordered steps with a
+   stop condition. `mindvault_get_project_map` is the single cheapest orientation read.
 4. If detection found nothing, try `mindvault_search` with one to three likely name variants
    (optionally `type: "project"`). If still nothing: ask the user, or continue without vault
    context and mention that a project note can be created (`mindvault_create_project`) —
    ideally with `aliases:`/`repoNames:` frontmatter so detection works next time.
 5. Read at most **1–5** specific notes with `mindvault_read_note` — start from the pack's
-   `recommendedNextReads`, which are ordered by importance.
+   `recommendedNextReads`, which are ordered by importance. For a structural overview of an
+   unfamiliar project, one map note (`mindvault_list_maps`, then read the project's map) is
+   the cheapest orientation there is — prefer it over `mindvault_list_notes` sweeps.
 6. Take the pack's `warnings` seriously (stale tasks, contradictory decisions, duplicates) —
    mention relevant ones to the user rather than silently working around them.
 7. Continue the coding task using that context. Do not silently contradict an accepted
    decision or constraint — if the task requires it, flag the conflict to the user first
-   (and see the decision-capture skill about superseding).
+   (and see the decision-capture skill about superseding). If the work surfaces memory you
+   are NOT sure is true or durable, park it with `mindvault_capture_thought` (see the
+   organisation skill) instead of writing a doubtful decision or memory note.
 
 Expected final behaviour: a few bullets of loaded context, warnings surfaced, and the real
 task under way — not a context essay.
@@ -60,7 +72,10 @@ task under way — not a context essay.
 
 - One context-pack call first; search only as a fallback (`explain: true` on
   `mindvault_search` shows why results ranked as they did, if retrieval looks off).
-- Read 1–5 notes maximum.
+- Read 1–5 notes maximum; scope big reads with `mindvault_read_note`'s `section` or
+  `maxChars` instead of pulling whole bodies.
+- Respect route-card `doNotRead` guidance — archived/superseded/hidden notes are flagged
+  so you never spend tokens on them.
 - Stop gathering the moment you have enough context to act.
 - Keep the summary to a few bullets; this skill exists to save context, not fill it.
 

@@ -23,6 +23,7 @@ public static class ErrorCodes
     public const string McpAuthRequired = "MCP_AUTH_REQUIRED";
     public const string McpAuthFailed = "MCP_AUTH_FAILED";
     public const string DuplicateSuspected = "DUPLICATE_SUSPECTED";
+    public const string RiskyContent = "RISKY_CONTENT";
 }
 
 public class MindVaultException(string message, string code = ErrorCodes.General) : Exception(message)

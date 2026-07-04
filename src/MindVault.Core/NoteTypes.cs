@@ -6,6 +6,7 @@ public static class NoteTypes
     [
         "project", "decision", "task", "bug", "feature", "architecture",
         "prompt", "research", "review", "meeting", "memory", "constraint", "risk",
+        "mistake", "thought",
     ];
 
     public static readonly IReadOnlyList<string> Statuses =

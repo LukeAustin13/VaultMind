@@ -8,17 +8,19 @@ public sealed class TempVault : IDisposable
     public string Root { get; }
     public VaultContext Ctx { get; private set; }
 
-    public TempVault(bool useFixture = true, bool init = true, bool scan = true)
+    public TempVault(bool useFixture = true, bool init = true, bool scan = true, string fixture = "SampleVault")
     {
         Root = Path.Combine(Path.GetTempPath(), "mindvault-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Root);
-        if (useFixture) CopyDirectory(FixtureDir, Root);
+        if (useFixture) CopyDirectory(FixtureDirFor(fixture), Root);
         if (init) VaultStructure.EnsureStructure(Root);
         Ctx = CreateContext();
         if (scan) Ctx.Scanner.Scan();
     }
 
-    public static string FixtureDir => Path.Combine(AppContext.BaseDirectory, "fixtures", "SampleVault");
+    public static string FixtureDir => FixtureDirFor("SampleVault");
+
+    public static string FixtureDirFor(string name) => Path.Combine(AppContext.BaseDirectory, "fixtures", name);
 
     public VaultContext CreateContext() => CreateContextFor(Root);
 

@@ -23,12 +23,14 @@ public sealed class RelatedNotesService(VaultContext ctx)
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { note.Path };
         var related = new List<RelatedNote>();
         var perGroup = Math.Max(limit / 3, 3);
+        var fb = ctx.Feedback.LoadAll();
+        bool Visible(NoteSummary n) => !FeedbackService.For(n, fb).Hidden;
 
         // 1. Outgoing wiki links (frontmatter + body), resolved to indexed notes.
         foreach (var link in ctx.Db.GetLinksFor(note.Id))
         {
             var target = ctx.Db.FindByTitle(link.Target).Concat(ctx.Db.FindByStem(link.Target))
-                .FirstOrDefault(n => !IsTemplate(n));
+                .FirstOrDefault(n => !IsTemplate(n) && Visible(n));
             if (target is not null && seen.Add(target.Path))
                 related.Add(Item(target, $"linked from this note ([[{link.Target}]])"));
         }
@@ -39,7 +41,7 @@ public sealed class RelatedNotesService(VaultContext ctx)
         {
             if (related.Count(r => r.Reason.StartsWith("links to")) >= perGroup) break;
             var source = ctx.Db.FindByPath(path);
-            if (source is not null && !IsTemplate(source) && seen.Add(source.Path))
+            if (source is not null && !IsTemplate(source) && Visible(source) && seen.Add(source.Path))
                 related.Add(Item(source, "links to this note"));
         }
 
@@ -53,7 +55,7 @@ public sealed class RelatedNotesService(VaultContext ctx)
                          excludeId: note.Id, limit: perGroup * 2))
             {
                 if (related.Count(r => r.Reason == "same project, active") >= perGroup) break;
-                if (!IsTemplate(sibling) && seen.Add(sibling.Path))
+                if (!IsTemplate(sibling) && Visible(sibling) && seen.Add(sibling.Path))
                     related.Add(Item(sibling, "same project, active"));
             }
         }
@@ -63,7 +65,7 @@ public sealed class RelatedNotesService(VaultContext ctx)
         if (note.Type is not null && titleTokens.Count > 0)
         {
             var similar = ctx.Db.Query(type: note.Type, excludeId: note.Id, limit: 200)
-                .Where(c => !IsTemplate(c))
+                .Where(c => !IsTemplate(c) && Visible(c))
                 .Select(c => (Note: c, Overlap: Jaccard(titleTokens, Tokens(c.Title))))
                 .Where(x => x.Overlap >= 0.3)
                 .OrderByDescending(x => x.Overlap)

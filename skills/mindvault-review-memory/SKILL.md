@@ -46,7 +46,9 @@ user has already dismissed.
      for the bar and statuses).
    - A review that overturned an architectural choice → `mindvault_create_decision`, then
      `mindvault_supersede_decision` to retire the old decision cleanly.
-   - Connect related notes with `mindvault_link_notes`.
+   - Connect related notes with `mindvault_link_notes` — `mindvault_suggest_links` on the
+     review note proposes the finding↔task/risk connections with reasons.
+   - A finding you are not yet sure is real → `mindvault_capture_thought`, not a task.
 5. If a previously recorded risk is now resolved, update its status via
    `mindvault_update_frontmatter` instead of re-describing it.
 

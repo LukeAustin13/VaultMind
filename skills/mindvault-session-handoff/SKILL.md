@@ -31,11 +31,20 @@ Returns the context pack — goal, non-negotiables, task-relevant notes, decisio
 active/blocked tasks, risks, constraints, `recommendedNextReads`, `doNotForget`, warnings —
 and ensures the project's implementation-log note exists. Then:
 
-1. Skim the pack; read at most 1–5 of the `recommendedNextReads` with `mindvault_read_note`.
-2. Surface any `warnings` that affect this session (stale tasks, contradicted decisions).
-3. If a tracked task covers this session's work, mark it `active`
+1. Resuming earlier work? `mindvault_recent_sessions` shows where the last session
+   stopped, and `mindvault_recall` shows what changed in the gap.
+2. For a mode-specific briefing (debugging, review, planning, handoff…) or a hard char
+   budget, `mindvault_build_context_capsule` — it also carries the do-not-repeat rules
+   from the mistake ledger.
+3. Skim the pack; read at most 1–5 of the `recommendedNextReads` with `mindvault_read_note`
+   (scope with `section`/`maxChars`). For a goal-focused session,
+   `mindvault_build_route_card` bounds the whole read budget and lists what NOT to read —
+   stop reading once its stop conditions are met, and prefer maps/summaries over raw notes.
+4. Surface any `warnings` that affect this session (stale tasks, contradicted decisions).
+5. If a tracked task covers this session's work, mark it `active`
    (`mindvault_update_frontmatter`, see `mindvault-task-sync`).
-4. Work.
+6. Work. A genuine milestone mid-session may earn ONE `mindvault_checkpoint_session`
+   breadcrumb; prefer none.
 
 Ending work (or being interrupted):
 
@@ -58,7 +67,8 @@ reader next week can resume from.
 - Do not call `mindvault_end_session` more than once per session, or after every small step.
 - Do not narrate: the summary is outcome and state, not a play-by-play.
 - Do not end a long session silently — if you did substantial work, write the handoff.
-- Do not spam mid-session `log` entries; prefer none.
+- Do not spam `mindvault_checkpoint_session` entries; one per genuine milestone, prefer none.
+- Do not paste secrets or tokens into summaries — the content gate will refuse them.
 
 ## Efficiency rules
 

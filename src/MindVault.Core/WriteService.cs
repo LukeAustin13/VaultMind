@@ -2,7 +2,8 @@ using System.Text.RegularExpressions;
 
 namespace MindVault.Core;
 
-public sealed record WriteResult(string Path, string? SnapshotPath, string Message, bool Changed = true);
+public sealed record WriteResult(string Path, string? SnapshotPath, string Message, bool Changed = true,
+    IReadOnlyList<string>? RiskWarnings = null);
 
 public sealed record ArchiveResult(string FromPath, string ToPath, string SnapshotPath, IReadOnlyList<string> Warnings);
 
@@ -75,12 +76,21 @@ public sealed partial class WriteService(VaultContext ctx)
     /// create unless <paramref name="allowDuplicate"/> — an agent spamming near-identical
     /// memory is the main way a vault rots. Lower-confidence similarity stays advisory.
     /// </summary>
-    private List<string> DraftWarnings(string type, string? project, string title, bool allowDuplicate)
+    private List<string> DraftWarnings(string type, string? project, string title, bool allowDuplicate,
+        string? excludePath = null)
     {
         var check = ctx.Drafts.CheckDraft(type, project, title);
-        if (!allowDuplicate && check.LikelyDuplicatePaths.Count > 0)
-            throw new DuplicateSuspectedException(type, title, check.LikelyDuplicatePaths);
-        return check.Warnings.Concat(check.Suggestions).ToList();
+        // Promotion checks a note against the vault — the note itself is never its own duplicate.
+        var duplicates = excludePath is null
+            ? check.LikelyDuplicatePaths
+            : check.LikelyDuplicatePaths
+                .Where(p => !string.Equals(p, excludePath, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (!allowDuplicate && duplicates.Count > 0)
+            throw new DuplicateSuspectedException(type, title, duplicates);
+        var extra = check.Warnings.Concat(check.Suggestions);
+        if (excludePath is not null)
+            extra = extra.Where(w => !w.Contains(excludePath, StringComparison.OrdinalIgnoreCase));
+        return extra.ToList();
     }
 
     /// <summary>Creates a note file from prepared content (vault-guarded, atomic, indexed).</summary>
@@ -118,23 +128,25 @@ public sealed partial class WriteService(VaultContext ctx)
     // ---------- append ----------
 
     public WriteResult AppendToSection(string noteRef, string section, string content,
-        bool createSection = false, bool dryRun = false)
+        bool createSection = false, bool dryRun = false, bool allowRiskyContent = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
-            return AppendToSectionCore(noteRef, section, content, createSection, dryRun);
+            return AppendToSectionCore(noteRef, section, content, createSection, dryRun, allowRiskyContent);
         }
     }
 
     private WriteResult AppendToSectionCore(string noteRef, string section, string content,
-        bool createSection, bool dryRun)
+        bool createSection, bool dryRun, bool allowRiskyContent = false)
     {
         if (string.IsNullOrWhiteSpace(section))
             throw new MindVaultException("Section heading must not be empty.");
         var normalizedContent = (content ?? "").Replace("\r\n", "\n").Trim('\n');
         if (normalizedContent.Trim().Length == 0)
             throw new MindVaultException("Content must not be empty.");
+        // Content gate before anything is touched: secrets block, injection language warns.
+        var riskWarnings = ContentRiskScanner.Gate(normalizedContent, allowRiskyContent);
 
         var note = ctx.Resolver.Resolve(noteRef);
         var abs = ctx.Resolver.AbsolutePathOf(note);
@@ -157,7 +169,8 @@ public sealed partial class WriteService(VaultContext ctx)
             return new WriteResult(note.Path, null,
                 $"[dry-run] Would append {normalizedContent.Length} chars under " +
                 (target is null ? $"NEW section '{wanted}'" : $"existing section '{wanted}'") +
-                $" in {note.Path} (snapshot first). Nothing was changed.", Changed: false);
+                $" in {note.Path} (snapshot first). Nothing was changed.", Changed: false,
+                RiskWarnings: riskWarnings);
         }
         var snapshot = ctx.Snapshots.Snapshot(abs);
 
@@ -192,21 +205,24 @@ public sealed partial class WriteService(VaultContext ctx)
         var newText = hasFm ? "---\n" + BumpUpdated(yamlText) + "---\n" + newBody : newBody;
         WriteBack(abs, newText, lineEnding);
         ctx.Scanner.IndexFile(abs);
-        return new WriteResult(note.Path, snapshot, $"Appended to '{wanted}' in {note.Path}");
+        return new WriteResult(note.Path, snapshot, $"Appended to '{wanted}' in {note.Path}",
+            RiskWarnings: riskWarnings);
     }
 
     // ---------- frontmatter ----------
 
-    public WriteResult UpdateFrontmatter(string noteRef, string key, string value, bool dryRun = false)
+    public WriteResult UpdateFrontmatter(string noteRef, string key, string value, bool dryRun = false,
+        bool allowRiskyContent = false)
     {
         lock (ctx.Sync)
         using (ctx.WriteLock.Acquire())
         {
-            return UpdateFrontmatterCore(noteRef, key, value, dryRun);
+            return UpdateFrontmatterCore(noteRef, key, value, dryRun, allowRiskyContent);
         }
     }
 
-    private WriteResult UpdateFrontmatterCore(string noteRef, string key, string value, bool dryRun)
+    private WriteResult UpdateFrontmatterCore(string noteRef, string key, string value, bool dryRun,
+        bool allowRiskyContent = false)
     {
         key = (key ?? "").Trim();
         if (!FrontmatterKeyPattern().IsMatch(key))
@@ -220,6 +236,7 @@ public sealed partial class WriteService(VaultContext ctx)
             throw new MindVaultException("Nested YAML values (objects or flow lists) are rejected. " +
                                          "Frontmatter must stay flat; for tags/links pass a comma-separated list.",
                 ErrorCodes.InvalidFrontmatter);
+        var riskWarnings = ContentRiskScanner.Gate(value, allowRiskyContent);
 
         var note = ctx.Resolver.Resolve(noteRef);
         var abs = ctx.Resolver.AbsolutePathOf(note);
@@ -250,7 +267,7 @@ public sealed partial class WriteService(VaultContext ctx)
 
         WriteAndVerify(abs, FrontmatterCodec.BuildDocument(fm, body), lineEnding, snapshot);
         ctx.Scanner.IndexFile(abs);
-        return new WriteResult(note.Path, snapshot, $"Set {key} in {note.Path}");
+        return new WriteResult(note.Path, snapshot, $"Set {key} in {note.Path}", RiskWarnings: riskWarnings);
     }
 
     // ---------- link ----------

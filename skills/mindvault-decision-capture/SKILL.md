@@ -41,9 +41,11 @@ already obvious from the code itself.
    - **Reasoning** — why this option won
    - **Consequences** — what this makes easier/harder
    - **Reversal Conditions** — what would make us revisit it (do not skip this)
-5. The create tool already links the decision to the project. Add further
-   `mindvault_link_notes` calls only when the decision directly relates to another decision
-   or task — `mindvault_find_related` on the new note shows what is worth linking.
+5. The create tool already links the decision to the project. For further links, run
+   `mindvault_suggest_links` on the new note — each suggestion carries a reason
+   (decision-to-task relationship, shared tags/tokens) and a confidence; apply the ones
+   that genuinely relate with `mindvault_link_notes`, one at a time. `mindvault_find_related`
+   remains the read-only view of what already surrounds the note.
 
 Expected final behaviour: one compact decision note with all six sections filled, correctly
 linked, with any replaced decision superseded — readable cold in six months.

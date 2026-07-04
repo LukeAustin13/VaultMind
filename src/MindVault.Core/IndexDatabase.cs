@@ -10,7 +10,7 @@ public sealed record NoteSummary(
 public sealed record SearchResult(
     string Title, string Path, string? Type, string? Project, string? Status,
     string Snippet, double Score, string? Section = null, string? Scope = null,
-    IReadOnlyList<string>? Why = null);
+    IReadOnlyList<string>? Why = null, string? Caution = null);
 
 /// <summary>
 /// Raw FTS candidate row before ranking policy is applied. Snippets are fetched separately
@@ -669,6 +669,20 @@ public sealed class IndexDatabase : IDisposable
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
                 result.Add(new NoteLinkRow(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+            return result;
+        }
+    }
+
+    /// <summary>Tags of one note (indexed by note_id), sorted for determinism.</summary>
+    public List<string> GetTagsFor(long noteId)
+    {
+        lock (_lock)
+        {
+            var result = new List<string>();
+            using var cmd = Cmd("SELECT tag FROM note_tags WHERE note_id = $id ORDER BY tag");
+            cmd.Parameters.AddWithValue("$id", noteId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read()) result.Add(reader.GetString(0));
             return result;
         }
     }

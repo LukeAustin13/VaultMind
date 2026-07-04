@@ -5,18 +5,22 @@
 `init` creates these folders (existing content is never touched):
 
 ```
-00_Inbox          unfiled captures
-01_Projects       project notes and their tasks
+00_Inbox          unfiled captures and raw thoughts
+01_Projects       project notes and their work items (tasks, bugs, features)
 02_Areas          ongoing areas of responsibility
-03_Resources      reference material
+03_Resources      reference material (03_Resources/Architecture for architecture notes)
 04_Decisions      decision records
 05_Prompts        reusable prompts
-06_Agent_Memory   agent memory notes
+06_Agent_Memory   agent memory notes (+ Inbox/, Meetings/, Mistakes/, Constraints/, Risks/)
 07_Reviews        reviews / retrospectives
 08_Templates      note templates (excluded from validation)
+09_Maps           generated map-of-content notes (see MAPS.md)
 99_Archive        archived notes (archive target; never hard-delete)
 .mindvault        operational data only — index.sqlite, snapshots/, backups/, logs/, state.json
 ```
+
+Per-type placement rules (used by `organize` and promotion, not by validation) are in
+[ORGANISATION.md](ORGANISATION.md).
 
 Markdown files are canonical. Everything under `.mindvault` is rebuildable and safe to delete
 (`rebuild-index` restores the index; snapshots/backups are point-in-time copies).
@@ -25,8 +29,13 @@ Markdown files are canonical. Everything under `.mindvault` is rebuildable and s
 
 ```
 project decision task bug feature architecture prompt
-research review meeting memory constraint risk
+research review meeting memory constraint risk mistake thought
 ```
+
+`thought` is the raw-capture type (uncertain, not yet durable — see
+[THOUGHTS_AND_MEMORY.md](THOUGHTS_AND_MEMORY.md)); `mistake` is the durable
+lesson type. Map notes carry `type: map`, which is deliberately *not* managed —
+maps are generated artifacts, so validation does not police their frontmatter.
 
 A note is "managed" when its `type` frontmatter is one of these. Managed notes must carry:
 
@@ -91,6 +100,9 @@ meta:
 | project | `01_Projects/<Name>.md` | `# <Name>` |
 | decision | `04_Decisions/Decision - <Title>.md` | `# Decision: <Title>` |
 | task | `01_Projects/Task - <Title>.md` | `# Task: <Title>` |
+| thought (CLI `create thought`) | `00_Inbox/<Title>.md` | `# Thought: <Title>` |
+| thought (`mindvault_capture_thought`) | `06_Agent_Memory/Inbox/<Title>.md` | `# Thought: <Title>` |
+| map (`map create`) | `09_Maps/<Project> Map.md` | `# <Project> Map` |
 
 `validate` warns (`outside-structure`) when a managed note of type project/task/decision/
 prompt/memory/review lives outside its expected folder (or `99_Archive`).

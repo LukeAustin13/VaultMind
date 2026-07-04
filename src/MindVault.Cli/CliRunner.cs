@@ -85,6 +85,29 @@ public static class CliRunner
                 "check-draft" => CmdCheckDraft(ctx, args, stdout, json),
                 "decision" => CmdDecision(ctx, args, stdout, infoOut, json),
                 "session" => CmdSession(ctx, args, stdout, infoOut, json),
+                "organize" => CmdOrganize(ctx, args, stdout, json),
+                "promote" => CmdPromote(ctx, args, infoOut, json),
+                "map" => CmdMap(ctx, args, stdout, infoOut, json),
+                "links" => CmdLinks(ctx, args, stdout, infoOut, json),
+                "frontmatter" => CmdFrontmatter(ctx, args, stdout, json),
+                "aliases" => CmdAliases(ctx, args, stdout, json),
+                "capsule" => CmdCapsule(ctx, args, stdout, json),
+                "work-context" => CmdWorkContext(ctx, args, stdout, json),
+                "recall" => CmdRecall(ctx, args, stdout, json),
+                "ops" => CmdOps(ctx, stdout, json),
+                "pin" => CmdRecordFeedback(ctx, args, infoOut, json, "pinned"),
+                "hide" => CmdRecordFeedback(ctx, args, infoOut, json, "hidden"),
+                "feedback" => CmdRecordFeedback(ctx, args, infoOut, json, null),
+                "mistake" => CmdMistake(ctx, args, stdout, json),
+                "inbox" => CmdInbox(ctx, args, stdout, json),
+                "compile" => CmdCompile(ctx, args, stdout, json),
+                "route" => CmdRoute(ctx, args, stdout, json),
+                "read-plan" => CmdReadPlan(ctx, args, stdout),
+                "token-audit" => CmdTokenAudit(ctx, args, stdout, json),
+                "summarize" => CmdSummarize(ctx, args, stdout, json),
+                "organisation-score" => CmdOrganisationScore(ctx, args, stdout, json),
+                "graph" => CmdGraph(ctx, args, stdout, json),
+                "low-value" => CmdLowValue(ctx, args, stdout, json),
                 _ => Unknown(command, stdout, stderr, json),
             };
             if (timer is not null)
@@ -495,7 +518,7 @@ public static class CliRunner
     private static int CmdCreate(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
     {
         if (args.Positionals.Count < 2)
-            throw new MindVaultException("Usage: create project \"<name>\" | create decision --project \"<p>\" --title \"<t>\" | create task --project \"<p>\" --title \"<t>\"");
+            throw new MindVaultException("Usage: create project \"<name>\" | create decision --project \"<p>\" --title \"<t>\" | create task --project \"<p>\" --title \"<t>\" | create thought \"<title>\" [--content \"<text>\"]");
         var kind = args.Positionals[1].ToLowerInvariant();
         var allowDuplicate = args.Has("allow-duplicate");
         var result = kind switch
@@ -504,7 +527,9 @@ public static class CliRunner
                 args.Positionals.Count > 2 ? args.Positionals[2] : args.Require("name"), allowDuplicate),
             "decision" => ctx.Writer.CreateDecision(args.Require("project"), args.Require("title"), allowDuplicate),
             "task" => ctx.Writer.CreateTask(args.Require("project"), args.Require("title"), allowDuplicate),
-            _ => throw new MindVaultException($"Unknown create target: '{kind}'. Use project, decision or task."),
+            "thought" => ctx.Writer.CaptureThought(
+                args.Positionals.Count > 2 ? args.Positionals[2] : args.Require("title"), args.Opt("content")),
+            _ => throw new MindVaultException($"Unknown create target: '{kind}'. Use project, decision, task or thought."),
         };
         var note = result.Note;
         if (json)
@@ -542,26 +567,26 @@ public static class CliRunner
         }
 
         var result = ctx.Writer.AppendToSection(noteRef, section, content!, args.Has("create-section"),
-            args.Has("dry-run"));
+            args.Has("dry-run"), args.Has("allow-risky-content"));
         if (json) stdout.WriteLine(Json.Serialize(new
         {
             ok = true, dryRun = args.Has("dry-run"), path = result.Path,
-            snapshot = result.SnapshotPath, message = result.Message,
+            snapshot = result.SnapshotPath, message = result.Message, riskWarnings = result.RiskWarnings,
         }));
-        else stdout.WriteLine(result.SnapshotPath is null ? result.Message : $"{result.Message} (snapshot: {result.SnapshotPath})");
+        else PrintWrite(stdout, result.SnapshotPath is null ? result.Message : $"{result.Message} (snapshot: {result.SnapshotPath})", result.RiskWarnings);
         return 0;
     }
 
     private static int CmdUpdateFrontmatter(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
     {
         var result = ctx.Writer.UpdateFrontmatter(args.Require("note"), args.Require("key"), args.Require("value"),
-            args.Has("dry-run"));
+            args.Has("dry-run"), args.Has("allow-risky-content"));
         if (json) stdout.WriteLine(Json.Serialize(new
         {
             ok = true, dryRun = args.Has("dry-run"), path = result.Path,
-            snapshot = result.SnapshotPath, message = result.Message,
+            snapshot = result.SnapshotPath, message = result.Message, riskWarnings = result.RiskWarnings,
         }));
-        else stdout.WriteLine(result.SnapshotPath is null ? result.Message : $"{result.Message} (snapshot: {result.SnapshotPath})");
+        else PrintWrite(stdout, result.SnapshotPath is null ? result.Message : $"{result.Message} (snapshot: {result.SnapshotPath})", result.RiskWarnings);
         return 0;
     }
 
@@ -570,6 +595,230 @@ public static class CliRunner
         var result = ctx.Writer.LinkNotes(args.Require("from"), args.Require("to"));
         if (json) stdout.WriteLine(Json.Serialize(new { ok = true, path = result.Path, changed = result.Changed }));
         else stdout.WriteLine(result.Message);
+        return 0;
+    }
+
+    private static int CmdOrganize(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var apply = args.Has("apply");
+        var report = apply ? ctx.Organizer.Apply(args.Opt("project")) : ctx.Organizer.Plan(args.Opt("project"));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = true, dryRun = report.DryRun, proposals = report.Proposals,
+                needsReview = report.NeedsReview, warnings = report.Warnings, applied = report.Applied,
+            }));
+            return 0;
+        }
+        stdout.WriteLine($"organize{(report.DryRun ? " (dry-run)" : " --apply")}: " +
+                         $"{report.Proposals.Count} proposal(s), {report.NeedsReview.Count} need review");
+        foreach (var p in report.Proposals)
+        {
+            stdout.WriteLine($"  move: {p.CurrentPath} -> {p.ProposedPath}");
+            stdout.WriteLine($"        {p.Reason} [{p.Confidence}]");
+        }
+        foreach (var r in report.NeedsReview) stdout.WriteLine($"  review: {r.Path} — {r.Reason}");
+        foreach (var w in report.Warnings) stdout.WriteLine($"  warning: {w}");
+        if (!report.DryRun)
+        {
+            foreach (var m in report.Applied)
+                stdout.WriteLine($"  moved: {m.FromPath} -> {m.ToPath} (snapshot: {m.SnapshotPath})");
+            stdout.WriteLine($"organize: {report.Applied.Count} note(s) moved");
+        }
+        else if (report.Proposals.Count > 0)
+        {
+            stdout.WriteLine("Nothing was changed. Re-run with --apply to execute these moves.");
+        }
+        return 0;
+    }
+
+    private static int CmdPromote(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var noteRef = args.Positionals.Count > 1 ? args.Positionals[1] : args.Opt("note");
+        if (string.IsNullOrWhiteSpace(noteRef))
+            throw new MindVaultException(
+                "Usage: promote \"<note-ref>\" --to <decision|memory|task|risk|mistake> [--project \"<p>\"] [--allow-duplicate]");
+        var result = ctx.Writer.PromoteNote(noteRef, args.Require("to"), args.Opt("project"),
+            args.Has("allow-duplicate"));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = true, from = result.FromPath, to = result.ToPath, type = result.Type,
+                status = result.Status, snapshot = result.SnapshotPath,
+                warnings = result.Warnings, suggestions = result.Suggestions,
+            }));
+            return 0;
+        }
+        stdout.WriteLine($"Promoted {result.FromPath} -> {result.Type} ({result.Status}) at {result.ToPath}");
+        foreach (var w in result.Warnings) stdout.WriteLine($"  note: {w}");
+        foreach (var s in result.Suggestions) stdout.WriteLine($"  suggest: {s}");
+        return 0;
+    }
+
+    private static int CmdMap(VaultContext ctx, CliArgs args, TextWriter stdout, TextWriter infoOut, bool json)
+    {
+        var sub = args.Positionals.Count > 1 ? args.Positionals[1].ToLowerInvariant() : "";
+        switch (sub)
+        {
+            case "create":
+            case "rebuild":
+            {
+                var result = sub == "create"
+                    ? ctx.Maps.Create(args.Require("project"))
+                    : ctx.Maps.Rebuild(args.Require("project"));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, path = result.Path, snapshot = result.SnapshotPath,
+                        message = result.Message, warnings = result.Warnings,
+                    }));
+                }
+                else
+                {
+                    infoOut.WriteLine(result.Message);
+                    foreach (var w in result.Warnings) infoOut.WriteLine($"  note: {w}");
+                }
+                return 0;
+            }
+            case "list":
+            {
+                var maps = ctx.Maps.List();
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new { ok = true, count = maps.Count, maps }));
+                }
+                else if (maps.Count == 0)
+                {
+                    stdout.WriteLine("No maps yet. Run: map create --project \"<name>\"");
+                }
+                else
+                {
+                    foreach (var m in maps)
+                        stdout.WriteLine($"  {m.Path}{(m.Project is null ? "" : $" (project: {m.Project})")}" +
+                                         (m.Updated is null ? "" : $" updated {m.Updated}"));
+                }
+                return 0;
+            }
+            default:
+                throw new MindVaultException("Usage: map create --project \"<p>\" | map rebuild --project \"<p>\" | map list");
+        }
+    }
+
+    private static int CmdLinks(VaultContext ctx, CliArgs args, TextWriter stdout, TextWriter infoOut, bool json)
+    {
+        var sub = args.Positionals.Count > 1 ? args.Positionals[1].ToLowerInvariant() : "";
+        switch (sub)
+        {
+            case "suggest":
+            {
+                var note = args.Opt("note");
+                var project = args.Opt("project");
+                if (note is null == (project is null))
+                    throw new MindVaultException(
+                        "Usage: links suggest --note \"<ref>\" [--limit n] | links suggest --project \"<p>\" [--limit n]");
+                var suggestions = note is not null
+                    ? ctx.LinkIntel.SuggestForNote(note, args.IntOpt("limit", 10))
+                    : ctx.LinkIntel.SuggestForProject(project!, args.IntOpt("limit", 20));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new { ok = true, count = suggestions.Count, suggestions }));
+                    return 0;
+                }
+                if (suggestions.Count == 0)
+                {
+                    stdout.WriteLine("No link suggestions — nothing scored two or more signals.");
+                    return 0;
+                }
+                foreach (var s in suggestions)
+                {
+                    stdout.WriteLine($"  {s.FromPath} -> {s.ToPath} [{s.Confidence}]");
+                    stdout.WriteLine($"    {s.Reason}");
+                }
+                stdout.WriteLine("Apply one with: links apply --note \"<from>\" --to \"<target>\"");
+                return 0;
+            }
+            case "apply":
+            {
+                var result = ctx.Writer.LinkNotes(args.Require("note"), args.Require("to"));
+                if (json)
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, path = result.Path, changed = result.Changed, snapshot = result.SnapshotPath,
+                    }));
+                else infoOut.WriteLine(result.Message);
+                return 0;
+            }
+            case "broken":
+            {
+                var (rows, truncated) = ctx.LinkIntel.BrokenLinks();
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new { ok = true, count = rows.Count, truncated, broken = rows }));
+                    return 0;
+                }
+                foreach (var r in rows) stdout.WriteLine($"  {r.FromPath}: [[{r.Target}]]");
+                stdout.WriteLine($"links broken: {rows.Count} broken wiki link(s){(truncated ? " (truncated)" : "")}");
+                return 0;
+            }
+            case "orphans":
+            {
+                var (rows, truncated) = ctx.LinkIntel.Orphans();
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new { ok = true, count = rows.Count, truncated, orphans = rows }));
+                    return 0;
+                }
+                foreach (var r in rows) stdout.WriteLine($"  {r.Path} ({r.Type}{(r.Status is null ? "" : $", {r.Status}")})");
+                stdout.WriteLine($"links orphans: {rows.Count} unlinked managed note(s){(truncated ? " (truncated)" : "")}");
+                return 0;
+            }
+            default:
+                throw new MindVaultException("Usage: links suggest | links apply | links broken | links orphans");
+        }
+    }
+
+    private static int CmdFrontmatter(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var sub = args.Positionals.Count > 1 ? args.Positionals[1].ToLowerInvariant() : "";
+        if (sub != "audit")
+            throw new MindVaultException("Usage: frontmatter audit [--project \"<p>\"]");
+        return PrintAudit(ctx.Audits.AuditFrontmatter(args.Opt("project")), "frontmatter audit", stdout, json);
+    }
+
+    private static int CmdAliases(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var sub = args.Positionals.Count > 1 ? args.Positionals[1].ToLowerInvariant() : "";
+        if (sub != "audit")
+            throw new MindVaultException("Usage: aliases audit");
+        return PrintAudit(ctx.Audits.AuditAliases(), "aliases audit", stdout, json);
+    }
+
+    private static int PrintAudit(AuditReport report, string label, TextWriter stdout, bool json)
+    {
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = report.Findings.All(f => f.Severity != "critical"),
+                notesChecked = report.NotesChecked,
+                criticals = report.Findings.Count(f => f.Severity == "critical"),
+                warnings = report.Findings.Count(f => f.Severity == "warning"),
+                infos = report.Findings.Count(f => f.Severity == "info"),
+                truncated = report.Truncated,
+                findings = report.Findings,
+            }));
+            return 0;
+        }
+        foreach (var f in report.Findings)
+        {
+            stdout.WriteLine($"{f.Severity.ToUpperInvariant(),-8} {f.Code}: {f.Issue}{(f.Path is null ? "" : $" [{f.Path}]")}");
+            if (f.Proposal is not null) stdout.WriteLine($"         fix: {f.Proposal}");
+        }
+        stdout.WriteLine($"{label}: {report.NotesChecked} checked, {report.Findings.Count} finding(s)" +
+                         (report.Truncated ? " (truncated)" : ""));
         return 0;
     }
 
@@ -887,24 +1136,554 @@ public static class CliRunner
                 return 0;
             }
             case "log":
+            case "checkpoint":
             {
-                var result = ctx.Sessions.Log(args.Require("project"), args.Require("summary"));
-                if (json) stdout.WriteLine(Json.Serialize(new { ok = true, path = result.Path, snapshot = result.SnapshotPath }));
-                else infoOut.WriteLine($"{result.Message}");
+                var result = ctx.Sessions.Log(args.Require("project"), args.Require("summary"),
+                    args.Has("dry-run"), args.Has("allow-risky-content"));
+                if (json)
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, dryRun = args.Has("dry-run"), path = result.Path,
+                        snapshot = result.SnapshotPath, riskWarnings = result.RiskWarnings,
+                    }));
+                else PrintWrite(infoOut, result.Message, result.RiskWarnings);
                 return 0;
             }
             case "end":
+            case "handoff":
             {
                 var result = ctx.Sessions.End(args.Require("project"), args.Require("summary"),
-                    args.Opt("tests"), args.Opt("followups"));
-                if (json) stdout.WriteLine(Json.Serialize(new { ok = true, path = result.Path, snapshot = result.SnapshotPath }));
-                else infoOut.WriteLine($"Handoff written to {result.Path}");
+                    args.Opt("tests"), args.Opt("followups"), args.Has("dry-run"), args.Has("allow-risky-content"));
+                if (json)
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, dryRun = args.Has("dry-run"), path = result.Path,
+                        snapshot = result.SnapshotPath, riskWarnings = result.RiskWarnings,
+                    }));
+                else PrintWrite(infoOut, args.Has("dry-run") ? result.Message : $"Handoff written to {result.Path}",
+                    result.RiskWarnings);
+                return 0;
+            }
+            case "recent":
+            {
+                var entries = ctx.Sessions.Recent(args.Require("project"), args.IntOpt("limit", 5));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new { ok = true, count = entries.Count, entries }));
+                }
+                else if (entries.Count == 0)
+                {
+                    stdout.WriteLine("No session entries yet. Run: session start --project \"<p>\"");
+                }
+                else
+                {
+                    foreach (var e in entries) stdout.WriteLine($"  [{e.Kind}] {e.Heading}");
+                    stdout.WriteLine($"log note: {entries[0].LogPath}");
+                }
                 return 0;
             }
             default:
                 throw new MindVaultException(
-                    "Usage: session start --project p [--task t] | session log --project p --summary s | " +
-                    "session end --project p --summary s [--tests t] [--followups f]");
+                    "Usage: session start --project p [--task t] | session checkpoint|log --project p --summary s | " +
+                    "session handoff|end --project p --summary s [--tests t] [--followups f] | session recent --project p");
+        }
+    }
+
+    private static void PrintWrite(TextWriter writer, string message, IReadOnlyList<string>? riskWarnings)
+    {
+        writer.WriteLine(message);
+        foreach (var w in riskWarnings ?? []) writer.WriteLine($"  risk: {w}");
+    }
+
+    private static int CmdCapsule(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var format = (args.Opt("format") ?? (json ? "json" : "markdown")).ToLowerInvariant();
+        var outcome = ctx.Capsules.Build(args.Require("project"), args.Opt("mode") ?? "coding",
+            args.IntOpt("max-chars", CapsuleService.DefaultBudget));
+        if (outcome.Capsule is null)
+        {
+            if (json || format == "json")
+            {
+                stdout.WriteLine(Json.Serialize(new { ok = false, ambiguous = true, candidates = outcome.Candidates }));
+            }
+            else
+            {
+                stdout.WriteLine("Project name is ambiguous — pick one:");
+                foreach (var c in outcome.Candidates)
+                    stdout.WriteLine($"  - {c.Title} ({c.Path}) via {c.MatchedVia}");
+            }
+            return 3;
+        }
+        if (json || format == "json")
+            stdout.WriteLine(Json.Serialize(new { ok = true, capsule = outcome.Capsule }));
+        else
+            stdout.WriteLine(CapsuleService.ToMarkdown(outcome.Capsule));
+        return 0;
+    }
+
+    private static int CmdWorkContext(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var result = ctx.WorkContext.Get(args.Require("project"), args.Opt("current-file"),
+            args.Opt("query"), args.Opt("note"), args.IntOpt("limit", 12));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new { ok = true, workContext = result }));
+            return 0;
+        }
+        stdout.WriteLine($"work-context for {result.Project} ({result.InputKind}: {result.Input})");
+        PrintWorkGroup(stdout, "Decisions", result.Decisions);
+        PrintWorkGroup(stdout, "Tasks", result.Tasks);
+        PrintWorkGroup(stdout, "Risks", result.Risks);
+        PrintWorkGroup(stdout, "Mistakes", result.Mistakes);
+        PrintWorkGroup(stdout, "Reviews", result.Reviews);
+        PrintWorkGroup(stdout, "Logs/Memory", result.Logs);
+        if (result.SuggestedReads.Count > 0)
+        {
+            stdout.WriteLine("Suggested reads:");
+            foreach (var r in result.SuggestedReads) stdout.WriteLine($"  - {r.Path} — {r.Reason}");
+        }
+        foreach (var w in result.Warnings) stdout.WriteLine($"  warning: {w}");
+        return 0;
+    }
+
+    private static void PrintWorkGroup(TextWriter stdout, string label, IReadOnlyList<WorkContextItem> items)
+    {
+        if (items.Count == 0) return;
+        stdout.WriteLine($"{label}:");
+        foreach (var i in items)
+            stdout.WriteLine($"  - {i.Title}{(i.Status is null ? "" : $" [{i.Status}]")} — {i.Reason} ({i.Path})");
+    }
+
+    private static int CmdRecall(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var result = ctx.RecallSvc.Recall(args.Opt("project"), args.Opt("since"), args.Has("on-this-day"));
+        var format = (args.Opt("format") ?? (json ? "json" : "markdown")).ToLowerInvariant();
+        if (json || format == "json")
+        {
+            stdout.WriteLine(Json.Serialize(new { ok = true, recall = result }));
+            return 0;
+        }
+        stdout.WriteLine($"recall{(result.Project is null ? "" : $" — {result.Project}")}: {result.Window}");
+        PrintRecallGroup(stdout, "Decisions", result.Decisions);
+        PrintRecallGroup(stdout, "Tasks", result.Tasks);
+        PrintRecallGroup(stdout, "Risks", result.Risks);
+        PrintRecallGroup(stdout, "Mistakes", result.Mistakes);
+        PrintRecallGroup(stdout, "Sessions", result.Sessions);
+        PrintRecallGroup(stdout, "Reviews", result.Reviews);
+        PrintRecallGroup(stdout, "Other notes", result.Notes);
+        foreach (var w in result.Warnings) stdout.WriteLine($"  warning: {w}");
+        return 0;
+    }
+
+    private static void PrintRecallGroup(TextWriter stdout, string label, IReadOnlyList<RecallItem> items)
+    {
+        if (items.Count == 0) return;
+        stdout.WriteLine($"{label}:");
+        foreach (var i in items)
+            stdout.WriteLine($"  - {i.Date} [{i.Change}] {i.Title}{(i.Status is null ? "" : $" ({i.Status})")} — {i.Path}");
+    }
+
+    private static int CmdOps(VaultContext ctx, TextWriter stdout, bool json)
+    {
+        var r = ctx.Ops.Run();
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new { ok = r.Health != "critical", ops = r }));
+            return 0;
+        }
+        stdout.WriteLine($"MindVault brain ops (v{MindVaultVersion.Current})");
+        stdout.WriteLine($"  health:           {r.Health.ToUpperInvariant()}" +
+                         (r.HealthReasons.Count > 0 ? $" — {r.HealthReasons[0]}" : ""));
+        stdout.WriteLine($"  vault:            {r.VaultPath} ({r.ConfigSource})");
+        stdout.WriteLine($"  notes:            {r.NoteCount} ({r.ManagedNoteCount} managed, archived ratio {r.ArchivedRatio:0.00})");
+        stdout.WriteLine($"  index:            scanned {r.LastScanUtc ?? "never"}" +
+                         (r.IndexAgeMinutes is { } age ? $" ({age} min ago)" : "") +
+                         (r.RescanPending ? " — RESCAN PENDING" : ""));
+        stdout.WriteLine($"  links:            {r.BrokenLinkCount} broken, {r.OrphanCount} orphan note(s)");
+        stdout.WriteLine($"  duplicates:       {r.DuplicateTitleCount} title(s), {r.AliasCollisionCount} alias collision(s)");
+        stdout.WriteLine($"  inbox drafts:     {r.InboxDraftCount}");
+        stdout.WriteLine($"  open risks:       {r.OpenRiskCount}; active mistakes: {r.ActiveMistakeCount}");
+        stdout.WriteLine($"  feedback signals: {r.FeedbackEntryCount}");
+        stdout.WriteLine($"  mcp tools:        {r.McpToolCount}; skills: {r.SkillsPack}");
+        stdout.WriteLine($"  latest session:   {r.LatestSession ?? "none"}");
+        stdout.WriteLine("  recommended:");
+        foreach (var f in r.RecommendedFixes) stdout.WriteLine($"    - {f}");
+        return 0;
+    }
+
+    private static int CmdCompile(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var report = ctx.Compiler.Compile(args.Opt("project"), args.Has("apply"));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = true, dryRun = report.DryRun, project = report.Project,
+                overallScore = report.OverallScore, artifacts = report.Artifacts,
+                warnings = report.Warnings,
+            }));
+            return 0;
+        }
+        stdout.WriteLine($"compile{(report.DryRun ? " (dry-run)" : " --apply")}" +
+                         $"{(report.Project is null ? "" : $" — {report.Project}")}: " +
+                         $"{report.Artifacts.Count} artefact(s), score {report.OverallScore}/100");
+        foreach (var a in report.Artifacts)
+            stdout.WriteLine($"  {a.Kind}: {a.Target} — {a.Status} ({a.Detail})");
+        foreach (var w in report.Warnings) stdout.WriteLine($"  warning: {w}");
+        if (report.DryRun)
+            stdout.WriteLine("Nothing was written. Re-run with --apply to build the artefacts.");
+        return 0;
+    }
+
+    private static int CmdRoute(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var format = (args.Opt("format") ?? (json ? "json" : "markdown")).ToLowerInvariant();
+        var budget = new ContextBudget(
+            MaxNotes: args.Options.ContainsKey("max-notes") ? args.IntOpt("max-notes", 5) : null,
+            MaxChars: args.Options.ContainsKey("max-chars") ? args.IntOpt("max-chars", 0) : null,
+            MaxEstimatedTokens: args.Options.ContainsKey("max-tokens") ? args.IntOpt("max-tokens", 0) : null);
+        var outcome = ctx.Routes.Build(args.Require("project"), args.Opt("goal"),
+            args.Opt("current-file"), args.Opt("query"), budget);
+        if (outcome.Card is null)
+        {
+            if (json || format == "json")
+            {
+                stdout.WriteLine(Json.Serialize(new { ok = false, ambiguous = true, candidates = outcome.Candidates }));
+            }
+            else
+            {
+                stdout.WriteLine("Project name is ambiguous — pick one:");
+                foreach (var c in outcome.Candidates)
+                    stdout.WriteLine($"  - {c.Title} ({c.Path}) via {c.MatchedVia}");
+            }
+            return 3;
+        }
+        if (json || format == "json")
+            stdout.WriteLine(Json.Serialize(new { ok = true, routeCard = outcome.Card }));
+        else
+            stdout.WriteLine(RouteCardService.ToMarkdown(outcome.Card));
+        return 0;
+    }
+
+    private static int CmdReadPlan(VaultContext ctx, CliArgs args, TextWriter stdout)
+    {
+        // Always JSON — a read plan is an agent artifact (mirrors project-context).
+        var outcome = ctx.ReadPlans.Build(args.Require("project"), args.Opt("goal"),
+            args.Opt("current-file"), args.IntOpt("max-reads", ReadPlanService.DefaultMaxReads));
+        if (outcome.Plan is null)
+        {
+            stdout.WriteLine(Json.Serialize(new { ok = false, ambiguous = true, candidates = outcome.Candidates }));
+            return 3;
+        }
+        stdout.WriteLine(Json.Serialize(new { ok = true, readPlan = outcome.Plan }));
+        return 0;
+    }
+
+    private static int CmdTokenAudit(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var r = ctx.TokenAudit.Run(args.Opt("project"));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new { ok = true, tokenAudit = r }));
+            return 0;
+        }
+        stdout.WriteLine($"token audit{(r.Project is null ? "" : $" — {r.Project}")}: {r.NoteCount} note(s)");
+        stdout.WriteLine($"  total ~{r.TotalEstimatedTokens} tokens (managed ~{r.ManagedEstimatedTokens}, " +
+                         $"active ~{r.ActiveEstimatedTokens}, archived ~{r.ArchivedEstimatedTokens})");
+        if (r.CapsuleEstimatedTokens > 0)
+            stdout.WriteLine($"  capsule ~{r.CapsuleEstimatedTokens} tokens; route read-first ~{r.RouteReadFirstEstimatedTokens} tokens");
+        stdout.WriteLine($"  large notes: {r.LargeNoteCount} ({r.LargeWithSummaryCount} summarized); " +
+                         $"estimated waste ~{r.EstimatedTokenWaste} tokens");
+        if (r.LargestNotes.Count > 0)
+        {
+            stdout.WriteLine("  largest:");
+            foreach (var n in r.LargestNotes.Take(5))
+                stdout.WriteLine($"    - {n.Path} ~{n.EstimatedTokens} tokens");
+        }
+        foreach (var n in r.NotesWithoutSummaries)
+            stdout.WriteLine($"  no summary: {n.Path} ~{n.EstimatedTokens} tokens");
+        foreach (var w in r.TokenWasteWarnings) stdout.WriteLine($"  warning: {w}");
+        stdout.WriteLine("  recommended:");
+        foreach (var f in r.RecommendedFixes) stdout.WriteLine($"    - {f}");
+        return 0;
+    }
+
+    private static int CmdSummarize(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var note = args.Opt("note");
+        var project = args.Opt("project");
+        if (note is not null && project is not null)
+            throw new MindVaultException("Pass --note or --project, not both.");
+        var apply = args.Has("apply");
+        var report = note is not null
+            ? ctx.Summaries.ForNote(note, apply)
+            : ctx.Summaries.ForProject(project, apply);
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = true, dryRun = report.DryRun, notesConsidered = report.NotesConsidered,
+                proposals = report.Proposals, applied = report.Applied, warnings = report.Warnings,
+            }));
+            return 0;
+        }
+        stdout.WriteLine($"summarize{(report.DryRun ? " (dry-run)" : " --apply")}: " +
+                         $"{report.NotesConsidered} candidate(s), {report.Applied} written");
+        foreach (var p in report.Proposals)
+        {
+            stdout.WriteLine($"  {p.Path}{(p.HadBlock ? " (refresh)" : " (new)")}" +
+                             $"{(p.NeedsReview ? " [needs review]" : "")}");
+            stdout.WriteLine($"    summary: {p.Summary}");
+        }
+        foreach (var w in report.Warnings) stdout.WriteLine($"  warning: {w}");
+        if (report.DryRun && report.Proposals.Count > 0)
+            stdout.WriteLine("Nothing was written. Re-run with --apply to add these summary blocks.");
+        return 0;
+    }
+
+    private static int CmdOrganisationScore(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var r = ctx.OrgScore.Run(args.Opt("project"));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new { ok = true, score = r }));
+            return 0;
+        }
+        stdout.WriteLine($"Organisation Score{(r.Project is null ? "" : $" — {r.Project}")}: {r.OverallScore}/100");
+        foreach (var c in r.Categories)
+            stdout.WriteLine($"  {c.Name}: {c.Score} — {c.Evidence}");
+        if (r.Strengths.Count > 0) stdout.WriteLine($"  strengths: {string.Join(", ", r.Strengths)}");
+        if (r.Weaknesses.Count > 0)
+        {
+            stdout.WriteLine("  weaknesses:");
+            foreach (var w in r.Weaknesses) stdout.WriteLine($"    - {w}");
+        }
+        stdout.WriteLine($"  estimated token waste ~{r.EstimatedTokenWaste}; " +
+                         $"savings if fixed ~{r.EstimatedTokenSavingsIfFixed}");
+        stdout.WriteLine("  recommended:");
+        foreach (var f in r.RecommendedFixes) stdout.WriteLine($"    - {f}");
+        return 0;
+    }
+
+    private static int CmdGraph(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var sub = args.Positionals.Count > 1 ? args.Positionals[1].ToLowerInvariant() : "";
+        switch (sub)
+        {
+            case "build":
+            {
+                var r = ctx.Graph.Build(args.Opt("project"));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, notes = r.NoteCount, edges = r.EdgeCount,
+                        edgesByType = r.EdgesByType, sidecar = r.SidecarPath,
+                    }));
+                    return 0;
+                }
+                stdout.WriteLine($"graph build: {r.EdgeCount} typed edge(s) across {r.NoteCount} note(s) -> {r.SidecarPath}");
+                foreach (var (type, count) in r.EdgesByType)
+                    stdout.WriteLine($"  {type}: {count}");
+                return 0;
+            }
+            case "relationships":
+            {
+                var edges = ctx.Graph.RelationshipsFor(args.Require("note"), args.IntOpt("limit", 50));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new { ok = true, count = edges.Count, relationships = edges }));
+                    return 0;
+                }
+                if (edges.Count == 0) { stdout.WriteLine("No typed relationships."); return 0; }
+                foreach (var e in edges)
+                    stdout.WriteLine($"  {e.FromPath} --{e.Type}--> {e.ToPath} — {e.Reason} [{e.Confidence:0.0#}, {e.Source}]");
+                return 0;
+            }
+            case "explain":
+            {
+                var r = ctx.Graph.Explain(args.Require("from"), args.Require("to"));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new { ok = true, found = r.Found, path = r.Path, explanation = r.Explanation }));
+                    return 0;
+                }
+                stdout.WriteLine(r.Explanation);
+                foreach (var e in r.Path)
+                    stdout.WriteLine($"  {e.FromPath} --{e.Type}--> {e.ToPath} [{e.Confidence:0.0#}]");
+                return 0;
+            }
+            default:
+                throw new MindVaultException(
+                    "Usage: graph build [--project \"<p>\"] | graph relationships --note \"<ref>\" | graph explain --from \"<ref>\" --to \"<ref>\"");
+        }
+    }
+
+    private static int CmdLowValue(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var r = ctx.LowValue.Find(args.Opt("project"));
+        if (json)
+        {
+            stdout.WriteLine(Json.Serialize(new
+            {
+                ok = true, project = r.Project, scanned = r.Scanned,
+                count = r.Notes.Count, notes = r.Notes, truncated = r.Truncated,
+            }));
+            return 0;
+        }
+        stdout.WriteLine($"low-value{(r.Project is null ? "" : $" — {r.Project}")}: " +
+                         $"{r.Notes.Count} of {r.Scanned} note(s) flagged");
+        foreach (var n in r.Notes)
+            stdout.WriteLine($"  - {n.Path} — {string.Join("; ", n.Reasons)}");
+        if (r.Truncated) stdout.WriteLine($"  (truncated at {LowValueService.MaxResults})");
+        return 0;
+    }
+
+    private static int CmdRecordFeedback(VaultContext ctx, CliArgs args, TextWriter stdout, bool json, string? fixedSignal)
+    {
+        var entry = ctx.Feedback.Record(args.Require("note"), fixedSignal ?? args.Require("signal"),
+            args.Opt("reason"));
+        if (json) stdout.WriteLine(Json.Serialize(new { ok = true, path = entry.Path, signal = entry.Signal }));
+        else stdout.WriteLine($"Recorded '{entry.Signal}' for {entry.Path}");
+        return 0;
+    }
+
+    private static int CmdMistake(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var sub = args.Positionals.Count > 1 ? args.Positionals[1].ToLowerInvariant() : "";
+        switch (sub)
+        {
+            case "add":
+            {
+                var result = ctx.Writer.CreateMistake(args.Require("title"), args.Opt("project"),
+                    args.Opt("lesson"), args.Opt("prevention"),
+                    args.Has("allow-duplicate"), args.Has("allow-risky-content"));
+                if (json)
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, path = result.Note.Path, title = result.Note.Title, warnings = result.Warnings,
+                    }));
+                else
+                {
+                    stdout.WriteLine($"Recorded mistake: {result.Note.Path}");
+                    foreach (var w in result.Warnings) stdout.WriteLine($"  note: {w}");
+                }
+                return 0;
+            }
+            case "list":
+            {
+                var rows = BrainQueries.Mistakes(ctx, args.Opt("project"), includeResolved: args.Has("all"));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, count = rows.Count,
+                        mistakes = rows.Select(n => new { n.Title, n.Path, n.Status, n.Project, n.Updated }),
+                    }));
+                }
+                else if (rows.Count == 0)
+                {
+                    stdout.WriteLine("No active mistakes recorded — either a clean run or an unwritten ledger.");
+                }
+                else
+                {
+                    foreach (var n in rows)
+                        stdout.WriteLine($"  - {n.Title} [{n.Status}]{(n.Project is null ? "" : $" ({n.Project})")} — {n.Path}");
+                }
+                return 0;
+            }
+            case "resolve":
+            {
+                var noteRef = args.Positionals.Count > 2 ? args.Positionals[2] : args.Require("note");
+                var result = ctx.Writer.ResolveMistake(noteRef);
+                if (json) stdout.WriteLine(Json.Serialize(new { ok = true, path = result.Path, snapshot = result.SnapshotPath }));
+                else stdout.WriteLine($"Resolved (status: done): {result.Path}");
+                return 0;
+            }
+            default:
+                throw new MindVaultException(
+                    "Usage: mistake add --title \"<t>\" [--project p] [--lesson l] [--prevention p] | " +
+                    "mistake list [--project p] [--all] | mistake resolve \"<note-ref>\"");
+        }
+    }
+
+    private static int CmdInbox(VaultContext ctx, CliArgs args, TextWriter stdout, bool json)
+    {
+        var sub = args.Positionals.Count > 1 ? args.Positionals[1].ToLowerInvariant() : "";
+        switch (sub)
+        {
+            case "add":
+            {
+                var type = args.Opt("type");
+                if (type is not null && !string.Equals(type, "thought", StringComparison.OrdinalIgnoreCase))
+                    throw new MindVaultException("The inbox holds thoughts. For durable notes use 'create' or 'promote'.");
+                var result = ctx.Writer.CaptureThought(args.Require("title"), args.Opt("content"),
+                    agentInbox: false, args.Opt("project"), args.Has("allow-risky-content"));
+                if (json)
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, path = result.Note.Path, title = result.Note.Title, warnings = result.Warnings,
+                    }));
+                else
+                {
+                    stdout.WriteLine($"Captured thought: {result.Note.Path}");
+                    foreach (var w in result.Warnings) stdout.WriteLine($"  note: {w}");
+                }
+                return 0;
+            }
+            case "list":
+            {
+                var rows = BrainQueries.Inbox(ctx, args.Opt("project"));
+                if (json)
+                {
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, count = rows.Count,
+                        drafts = rows.Select(n => new { n.Title, n.Path, n.Project, n.Updated }),
+                    }));
+                }
+                else if (rows.Count == 0)
+                {
+                    stdout.WriteLine("The inbox is empty.");
+                }
+                else
+                {
+                    foreach (var n in rows)
+                        stdout.WriteLine($"  - {n.Title}{(n.Project is null ? "" : $" ({n.Project})")} — {n.Path}");
+                    stdout.WriteLine("Promote with: inbox promote \"<ref>\" --to <type>  |  reject with: inbox reject \"<ref>\"");
+                }
+                return 0;
+            }
+            case "promote":
+            {
+                var noteRef = args.Positionals.Count > 2 ? args.Positionals[2] : args.Require("note");
+                var result = ctx.Writer.PromoteNote(noteRef, args.Require("to"), args.Opt("project"),
+                    args.Has("allow-duplicate"));
+                if (json)
+                    stdout.WriteLine(Json.Serialize(new
+                    {
+                        ok = true, from = result.FromPath, to = result.ToPath, type = result.Type,
+                        status = result.Status, warnings = result.Warnings, suggestions = result.Suggestions,
+                    }));
+                else
+                {
+                    stdout.WriteLine($"Promoted {result.FromPath} -> {result.Type} ({result.Status}) at {result.ToPath}");
+                    foreach (var s in result.Suggestions) stdout.WriteLine($"  suggest: {s}");
+                }
+                return 0;
+            }
+            case "reject":
+            {
+                var noteRef = args.Positionals.Count > 2 ? args.Positionals[2] : args.Require("note");
+                var result = ctx.Writer.Archive(noteRef);
+                if (json) stdout.WriteLine(Json.Serialize(new { ok = true, from = result.FromPath, to = result.ToPath }));
+                else stdout.WriteLine($"Rejected (archived): {result.FromPath} -> {result.ToPath}");
+                return 0;
+            }
+            default:
+                throw new MindVaultException(
+                    "Usage: inbox add --title \"<t>\" [--content c] [--project p] | inbox list [--project p] | " +
+                    "inbox promote \"<ref>\" --to <type> | inbox reject \"<ref>\"");
         }
     }
 
@@ -953,13 +1732,62 @@ public static class CliRunner
           decision graph [--project p]             decision supersede/related graph
           decision supersede --old "<ref>" --new "<ref>"
           session start --project p [--task t]     briefing pack + ensures the session log note
-          session log --project p --summary s      mid-session breadcrumb (use sparingly)
-          session end --project p --summary s [--tests t] [--followups f]
+          session checkpoint|log --project p --summary s [--dry-run]
+                                                   mid-session breadcrumb (use sparingly)
+          session handoff|end --project p --summary s [--tests t] [--followups f] [--dry-run]
                                                    concise handoff entry for the next session
+          session recent --project p [--limit n]   latest handoffs and checkpoints
+          capsule --project p [--mode coding|debugging|review|planning|handoff|release|architecture]
+                  [--format markdown|json] [--max-chars n]
+                                                   budgeted, source-backed context capsule
+          work-context --project p (--current-file f | --query q | --note "<ref>") [--limit n]
+                                                   memory related to what you are working on, with reasons
+          recall [--project p] [--since "7 days"|yyyy-MM-dd] [--on-this-day] [--format markdown|json]
+                                                   what changed in a time window, grouped
+          ops                                      one-call brain state + recommended fixes
+          pin --note "<ref>"                       boost a note in capsules/work-context ranking
+          hide --note "<ref>"                      exclude a note from capsules/work-context/suggestions
+          feedback --note "<ref>" --signal useful|noisy|outdated|wrong [--reason r]
+          mistake add --title "<t>" [--project p] [--lesson l] [--prevention p]
+          mistake list [--project p] [--all]       the mistake ledger (active lessons)
+          mistake resolve "<note-ref>"             mark a lesson done (stays in the ledger)
+          inbox add --title "<t>" [--content c] [--project p]
+          inbox list [--project p]                 unpromoted thought drafts
+          inbox promote "<ref>" --to <type>        thought -> durable memory
+          inbox reject "<ref>"                     archive a draft that did not survive
           create project "<name>" [--allow-duplicate]
           create decision --project "<p>" --title "<t>" [--allow-duplicate]
           create task --project "<p>" --title "<t>" [--allow-duplicate]
                                                    creates REFUSE likely duplicates unless --allow-duplicate
+          create thought "<title>" [--content "<text>"]
+                                                   capture a raw thought into 00_Inbox (promote it later)
+          promote "<note-ref>" --to <decision|memory|task|risk|mistake> [--project "<p>"] [--allow-duplicate]
+                                                   thought -> durable memory: frontmatter, placement, project link
+          organize [--project "<p>"] [--apply]     propose placement moves with reasons (dry-run by default)
+          map create|rebuild --project "<p>"       generated project map in 09_Maps (human text preserved)
+          map list                                 list map notes
+          links suggest (--note "<ref>" | --project "<p>") [--limit n]
+                                                   reason-tagged link suggestions (never auto-applied)
+          links apply --note "<from>" --to "<target>"
+          links broken                             wiki links whose target does not exist
+          links orphans                            managed notes with no links in either direction
+          frontmatter audit [--project "<p>"]      frontmatter quality findings with proposed fixes
+          aliases audit                            alias/repoName hygiene across project notes
+          compile [--project "<p>"] [--apply]      build navigation artefacts: maps, summaries, graph,
+                                                   health + score (dry-run by default)
+          route --project "<p>" [--goal g | --current-file f | --query q]
+                [--format markdown|json] [--max-notes n] [--max-chars n] [--max-tokens n]
+                                                   agent route card: read-first/do-not-read with reasons + tokens
+          read-plan --project "<p>" [--goal g | --current-file f] [--max-reads n]
+                                                   strict ordered read plan with stop conditions (JSON)
+          token-audit [--project "<p>"]            where the tokens go: totals, largest, unsummarized, waste
+          summarize (--project "<p>" | --note "<ref>") [--apply]
+                                                   generated extractive summary blocks (dry-run by default)
+          organisation-score [--project "<p>"]     11 explainable categories + weaknesses + token waste
+          graph build [--project "<p>"]            typed relationship graph -> .mindvault/link-graph.jsonl
+          graph relationships --note "<ref>"       typed edges touching a note, with reasons
+          graph explain --from "<ref>" --to "<ref>" why two notes matter together (up to 2 hops)
+          low-value [--project "<p>"]              notes agents should not read by default, with reasons
           append --note "<ref>" --section "<heading>" (--content "<text>" | --content-file <path>)
                  [--create-section] [--dry-run]
           update-frontmatter --note "<ref>" --key "<key>" --value "<value>" [--dry-run]

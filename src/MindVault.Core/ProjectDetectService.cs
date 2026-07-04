@@ -134,7 +134,8 @@ public sealed class ProjectDetectService(VaultContext ctx)
             : new ProjectDetection(null, "ambiguous", via, candidates);
     }
 
-    private Dictionary<long, (List<string> Aliases, List<string> RepoNames)> LoadAliases()
+    /// <summary>Raw alias/repoName declarations per project note id (also used by the alias audit).</summary>
+    internal Dictionary<long, (List<string> Aliases, List<string> RepoNames)> LoadAliases()
     {
         var map = new Dictionary<long, (List<string>, List<string>)>();
         foreach (var (noteId, key, value) in ctx.Db.GetProjectAliasRows())
@@ -146,7 +147,7 @@ public sealed class ProjectDetectService(VaultContext ctx)
         return map;
     }
 
-    private static string Condense(string value) =>
+    internal static string Condense(string value) =>
         new([.. value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant)]);
 
     private static double Jaccard(HashSet<string> a, HashSet<string> b)

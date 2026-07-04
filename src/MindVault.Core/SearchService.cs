@@ -58,6 +58,19 @@ public sealed partial class SearchService(VaultContext ctx)
         // and tokenizes note bodies, so running it for the whole candidate pool wastes work.
         var snippets = ctx.Db.GetSnippets(match, scored.Select(s => s.Candidate.Id).ToList());
 
+        // Feedback annotates but never re-ranks: FTS relevance stays reproducible, the agent
+        // just learns it is about to read a note the user marked hidden/noisy before paying
+        // for the read.
+        var fb = ctx.Feedback.LoadAll();
+        string? CautionFor(string path)
+        {
+            var stem = SlugHelper.NormalizeWiki(Path.GetFileNameWithoutExtension(path));
+            if (!fb.TryGetValue(stem, out var state)) return null;
+            if (state.Hidden) return "hidden by feedback — skip unless the user asks";
+            if (state.Score < 0) return $"negative feedback (score {state.Score}) — likely low value";
+            return null;
+        }
+
         return scored.Select(s => new SearchResult(
                 s.Candidate.Title, s.Candidate.Path, s.Candidate.Type, s.Candidate.Project,
                 s.Candidate.Status,
@@ -65,7 +78,8 @@ public sealed partial class SearchService(VaultContext ctx)
                 Math.Round(s.Relevance, 4),
                 Section: FindMatchedSection(s.Candidate.Id, snippets.GetValueOrDefault(s.Candidate.Id, "")),
                 Scope: scope,
-                Why: explain ? s.Why : null))
+                Why: explain ? s.Why : null,
+                Caution: CautionFor(s.Candidate.Path)))
             .ToList();
     }
 

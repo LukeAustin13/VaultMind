@@ -7,12 +7,19 @@ tools instead of raw filesystem access.
 
 ## What MindVault is
 
-- A **CLI** (`mindvault`) for humans and scripts: scan, search, read, create, append, validate.
-- An **MCP server** exposing 23 safe `mindvault_*` tools over stdio or token-protected HTTP
+- A **CLI** (`mindvault`) for humans and scripts: scan, search, read, create, append, validate,
+  organize, promote, map, link-audit, capsule, work-context, recall, ops.
+- An **MCP server** exposing 55 safe `mindvault_*` tools over stdio or token-protected HTTP
   (the HTTP mode powers the [Docker / Raspberry Pi deployment](docs/DOCKER.md)) — including
-  repo-to-project detection, context packs, session start/end, draft quality checks with
-  duplicate refusal, related-note lookup, decision supersede and secrets-free
-  health/diagnostics.
+  repo-to-project detection, [context capsules](docs/CONTEXT_CAPSULES.md) (7 modes,
+  char-budgeted), [work-context](docs/WORK_CONTEXT.md) for the file you are editing,
+  time-window [recall](docs/SUPERPOWER_BRAIN_RESULTS.md), a session lifecycle
+  (start/checkpoint/handoff/recent), a [mistake ledger](docs/MISTAKE_LEDGER.md) whose
+  lessons surface as do-not-repeat rules, deterministic
+  [feedback signals](docs/FEEDBACK_SIGNALS.md), a
+  [content risk scanner](docs/SAFETY_SCANNER.md) that refuses secrets, the
+  [organisation layer](docs/ORGANISATION.md) (placement proposals, thought promotion,
+  generated maps, link intelligence, audits) and a one-call brain-ops rollup.
 - A **SQLite FTS5 index** that is pure, rebuildable cache — your Markdown files stay canonical.
 - A **safety layer**: every mutation snapshots the note first, writes are confined to the vault,
   archive replaces delete, and YAML frontmatter is validated after every write.
@@ -158,14 +165,25 @@ register the server with your MCP client using stdio:
 }
 ```
 
-Tools exposed (23): `mindvault_status`, `mindvault_search`, `mindvault_read_note`,
+Tools exposed (55): `mindvault_status`, `mindvault_search`, `mindvault_read_note`,
 `mindvault_list_notes`, `mindvault_create_project`, `mindvault_create_decision`,
 `mindvault_create_task`, `mindvault_append_to_note`, `mindvault_update_frontmatter`,
 `mindvault_link_notes`, `mindvault_archive_note`, `mindvault_validate_vault`,
 `mindvault_get_project_context`, `mindvault_rebuild_index`, `mindvault_get_context_pack`,
 `mindvault_check_draft`, `mindvault_supersede_decision`, `mindvault_start_session`,
 `mindvault_end_session`, `mindvault_health`, `mindvault_diagnostics`,
-`mindvault_detect_project`, `mindvault_find_related`.
+`mindvault_detect_project`, `mindvault_find_related`, `mindvault_capture_thought`,
+`mindvault_promote_note`, `mindvault_organize_vault`, `mindvault_create_map`,
+`mindvault_rebuild_map`, `mindvault_list_maps`, `mindvault_suggest_links`,
+`mindvault_find_broken_links`, `mindvault_find_orphans`, `mindvault_audit_frontmatter`,
+`mindvault_audit_aliases`, `mindvault_build_context_capsule`, `mindvault_get_work_context`,
+`mindvault_recall`, `mindvault_record_feedback`, `mindvault_brain_ops`,
+`mindvault_checkpoint_session`, `mindvault_recent_sessions`, `mindvault_list_inbox`,
+`mindvault_add_mistake`, `mindvault_list_mistakes`, `mindvault_resolve_mistake`,
+`mindvault_get_project_map`, `mindvault_build_route_card`, `mindvault_build_read_plan`,
+`mindvault_token_audit`, `mindvault_generate_summaries`, `mindvault_organisation_score`,
+`mindvault_build_graph`, `mindvault_explain_relationships`,
+`mindvault_find_low_value_notes`, `mindvault_compile_brain`.
 
 `mindvault_start_session` is the one to reach for first: one call returns the full context
 pack (goal, non-negotiables, task-relevant notes, decisions in force, tasks, risks,
@@ -174,11 +192,13 @@ warnings, recommended next reads) and sets up the session log for the handoff at
 
 ## Skills pack (Claude Code workflows)
 
-[`/skills`](skills) is a portable pack of eight Claude Code skills — workflow instructions
-that teach Claude Code when and how to use the MindVault MCP tools: session-bracketed work
-(brief in, hand off out), context packs before coding, draft checks before creating notes,
-decision capture with proper supersede lifecycle, task sync, review memory, architecture
-memory and vault hygiene. Drop the folders into any project's `.claude/skills/` once the
+[`/skills`](skills) is a portable pack of thirteen Claude Code skills — workflow
+instructions that teach Claude Code when and how to use the MindVault MCP tools:
+session-bracketed work (brief in, hand off out), route cards and read plans before any
+broad search (read less, stop sooner), context packs before coding, draft checks before
+creating notes, decision capture with proper supersede lifecycle, task sync, review
+memory, architecture memory, vault hygiene and safe organisation (dry-run placement,
+thought promotion, maps, link repair). Drop the folders into any project's `.claude/skills/` once the
 MCP server is configured. The skills reference only the safe `mindvault_*` tools — no shell,
 no raw file writes (enforced by a test). Setup, install and per-skill test instructions:
 [docs/SKILLS_SETUP.md](docs/SKILLS_SETUP.md).

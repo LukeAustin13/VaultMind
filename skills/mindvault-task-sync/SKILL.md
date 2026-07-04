@@ -44,6 +44,8 @@ Do NOT use for: sub-30-minute chores you are about to do anyway, vague ideas
 
 5. Link the task to a related decision or note with `mindvault_link_notes` when the
    connection matters (task implements decision X, task follows from review Y).
+   `mindvault_suggest_links` on the task proposes exactly these connections with reasons —
+   apply the ones that hold, skip the rest.
 6. When you finish tracked work in a session: set the task `done` and add a one-line result
    to its **Status Notes** section via `mindvault_append_to_note`.
 

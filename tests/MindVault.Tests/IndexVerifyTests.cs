@@ -14,7 +14,7 @@ public sealed class IndexVerifyTests
         Assert.True(s.IndexSizeBytes > 0);
         Assert.Equal(IndexDatabase.CurrentSchemaVersion, s.SchemaVersion);
         Assert.Equal(IndexDatabase.CurrentSchemaVersion, s.ExpectedSchemaVersion);
-        Assert.Equal(24, s.NoteCount);
+        Assert.Equal(26, s.NoteCount);
         Assert.Equal(s.NoteCount, s.FtsRowCount);
         Assert.False(s.RescanPending);
     }

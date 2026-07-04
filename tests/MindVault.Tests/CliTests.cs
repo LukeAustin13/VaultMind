@@ -22,7 +22,7 @@ public sealed class CliTests : IDisposable
         var (code, stdout, _) = RunCli("status");
         Assert.Equal(0, code);
         Assert.Contains(_tv.Root, stdout);
-        Assert.Contains("24 notes", stdout);
+        Assert.Contains("26 notes", stdout);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class CliTests : IDisposable
         Assert.Equal(0, code);
         using var doc = JsonDocument.Parse(stdout);
         Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());
-        Assert.Equal(24, doc.RootElement.GetProperty("noteCount").GetInt32());
+        Assert.Equal(26, doc.RootElement.GetProperty("noteCount").GetInt32());
     }
 
     [Fact]

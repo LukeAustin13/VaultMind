@@ -272,6 +272,68 @@ public static class NoteTemplates
 
         """;
 
+    public static string Thought(string title, string date, string? content = null,
+        string? projectTitle = null, string? projectStem = null)
+    {
+        var projectLine = projectTitle is null ? "" : $"project: {projectTitle}\n";
+        var links = projectStem is null ? "links: []" : $"links:\n  - \"[[{projectStem}]]\"";
+        return $"""
+        ---
+        type: thought
+        status: draft
+        created: {date}
+        updated: {date}
+        {projectLine}tags:
+          - thought
+        {links}
+        ---
+
+        # Thought: {title}
+
+        ## Thought
+
+        {content?.Trim() ?? ""}
+
+        ## Why It Might Matter
+
+        ## Promote When
+
+        """;
+    }
+
+    public static string Mistake(string title, string? projectTitle, string? projectStem, string date,
+        string? lesson = null, string? prevention = null)
+    {
+        var projectLine = projectTitle is null ? "" : $"project: {projectTitle}\n";
+        var links = projectStem is null ? "links: []" : $"links:\n  - \"[[{projectStem}]]\"";
+        return $"""
+        ---
+        type: mistake
+        status: active
+        created: {date}
+        updated: {date}
+        {projectLine}tags:
+          - mistake
+        {links}
+        ---
+
+        # Mistake: {title}
+
+        ## What Happened
+
+        ## Root Cause
+
+        ## How To Avoid It
+
+        {lesson?.Trim() ?? ""}
+
+        ## Prevention Task
+
+        {prevention?.Trim() ?? ""}
+
+        """;
+    }
+
     /// <summary>Template files written into 08_Templates by `init` (placeholder names, empty dates).</summary>
     public static IEnumerable<(string RelativePath, string Content)> InitTemplates()
     {
@@ -285,5 +347,7 @@ public static class NoteTemplates
         yield return ("08_Templates/Review.md", Review("Title", "Project Name", "Project Name", ""));
         yield return ("08_Templates/Prompt.md", Prompt("Title", ""));
         yield return ("08_Templates/Memory.md", Memory("Title", ""));
+        yield return ("08_Templates/Thought.md", Thought("Title", ""));
+        yield return ("08_Templates/Mistake.md", Mistake("Title", "Project Name", "Project Name", ""));
     }
 }

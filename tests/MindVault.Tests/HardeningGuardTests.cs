@@ -19,7 +19,23 @@ public sealed partial class HardeningGuardTests
         "mindvault_supersede_decision", "mindvault_start_session", "mindvault_end_session",
         "mindvault_health", "mindvault_diagnostics",
         "mindvault_detect_project", "mindvault_find_related",
+        "mindvault_capture_thought", "mindvault_promote_note", "mindvault_organize_vault",
+        "mindvault_create_map", "mindvault_rebuild_map", "mindvault_list_maps",
+        "mindvault_suggest_links", "mindvault_find_broken_links", "mindvault_find_orphans",
+        "mindvault_audit_frontmatter", "mindvault_audit_aliases",
+        "mindvault_build_context_capsule", "mindvault_get_work_context", "mindvault_recall",
+        "mindvault_record_feedback", "mindvault_brain_ops", "mindvault_checkpoint_session",
+        "mindvault_recent_sessions", "mindvault_list_inbox", "mindvault_add_mistake",
+        "mindvault_list_mistakes", "mindvault_resolve_mistake",
+        "mindvault_get_project_map", "mindvault_build_route_card", "mindvault_build_read_plan",
+        "mindvault_token_audit", "mindvault_generate_summaries", "mindvault_organisation_score",
+        "mindvault_build_graph", "mindvault_explain_relationships",
+        "mindvault_find_low_value_notes", "mindvault_compile_brain",
     };
+
+    [Fact]
+    public void BrainOpsToolCountConstantMatchesTheRealSurface() =>
+        Assert.Equal(MindVaultVersion.McpToolCount, SafeTools.Count);
 
     [Fact]
     public void MutationsLeaveNoTempFilesBehind()

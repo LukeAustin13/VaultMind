@@ -157,6 +157,13 @@ public sealed class ValidationService(VaultContext ctx)
             projectNames.Add(SlugHelper.NormalizeWiki(project.Title));
             projectNames.Add(SlugHelper.NormalizeWiki(project.Stem));
         }
+        // Declared aliases/repoNames are valid project: values too — detection resolves
+        // through them, so they must not be reported as missing project notes.
+        foreach (var (_, _, value) in ctx.Db.GetProjectAliasRows())
+        {
+            foreach (var alias in Json.ReadStringList(value))
+                projectNames.Add(SlugHelper.NormalizeWiki(alias));
+        }
         foreach (var note in contentNotes.Where(n =>
                      n.Project is { Length: > 0 } p && !projectNames.Contains(SlugHelper.NormalizeWiki(p))))
         {

@@ -7,8 +7,8 @@ public static class VaultStructure
     public static readonly IReadOnlyList<string> RequiredFolders =
     [
         "00_Inbox", "01_Projects", "02_Areas", "03_Resources", "04_Decisions",
-        "05_Prompts", "06_Agent_Memory", "07_Reviews", "08_Templates", "99_Archive",
-        ".mindvault",
+        "05_Prompts", "06_Agent_Memory", "07_Reviews", "08_Templates", "09_Maps",
+        "99_Archive", ".mindvault",
     ];
 
     public static readonly IReadOnlyList<string> TemplateFiles =
@@ -17,6 +17,7 @@ public static class VaultStructure
         "08_Templates/Risk.md", "08_Templates/Constraint.md", "08_Templates/Architecture.md",
         "08_Templates/Implementation Log.md", "08_Templates/Review.md",
         "08_Templates/Prompt.md", "08_Templates/Memory.md",
+        "08_Templates/Thought.md", "08_Templates/Mistake.md",
     ];
 
     /// <summary>Folder a managed note type is expected to live in (besides 99_Archive). Null = anywhere.</summary>
@@ -43,7 +44,9 @@ public static class VaultStructure
                 createdFolders.Add(folder);
             }
         }
-        foreach (var sub in new[] { ".mindvault/snapshots", ".mindvault/logs" })
+        // Always-created subfolders. 06_Agent_Memory/Inbox holds unpromoted agent thought
+        // drafts; it is created (so the capture flow works) but not validation-required.
+        foreach (var sub in new[] { ".mindvault/snapshots", ".mindvault/logs", "06_Agent_Memory/Inbox" })
             Directory.CreateDirectory(Path.Combine(vaultRoot, sub));
 
         var createdTemplates = new List<string>();

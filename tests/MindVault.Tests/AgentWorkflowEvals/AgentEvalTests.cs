@@ -109,7 +109,7 @@ public sealed partial class AgentEvalTests
             "## Efficiency rules", "## Safety rules",
         };
         var files = SkillFiles().ToList();
-        Assert.Equal(8, files.Count);
+        Assert.Equal(13, files.Count);
         foreach (var file in files)
         {
             var content = File.ReadAllText(file);

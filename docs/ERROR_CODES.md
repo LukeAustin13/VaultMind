@@ -26,6 +26,7 @@ message text. Defined in `src/MindVault.Core/Exceptions.cs` (`ErrorCodes`).
 | `MCP_AUTH_REQUIRED` | HTTP transport started without a token and without explicit anonymous opt-in | Set `MINDVAULT_MCP_AUTH_TOKEN` (or `--no-auth` for local dev only) |
 | `MCP_AUTH_FAILED` | Request had a missing/wrong bearer token (HTTP 401) | Send `Authorization: Bearer <token>` |
 | `DUPLICATE_SUSPECTED` | A create was refused because a very similar note (or an alias-colliding project) already exists; `candidates` lists them | Update/supersede the existing note, or pass `--allow-duplicate` / `allowDuplicate: true` deliberately |
+| `RISKY_CONTENT` | A write was blocked because the content looks like a secret (private key, cloud/API/bearer token); evidence is redacted | Remove the secret (describe it instead), or pass `--allow-risky-content` / `allowRiskyContent: true` deliberately |
 | `MINDVAULT_ERROR` | Any other known-and-handled MindVault error | Read the message; it names the fix |
 | `UNEXPECTED_ERROR` | Unhandled exception (CLI exit 1; MCP returns a sanitized message) | Bug — the CLI/stderr has details |
 

@@ -34,6 +34,23 @@ public sealed class VaultContext : IDisposable
     public IndexVerifier IndexCheck { get; }
     public ProjectDetectService ProjectDetect { get; }
     public RelatedNotesService Related { get; }
+    public OrganizeService Organizer { get; }
+    public MapService Maps { get; }
+    public LinkIntelligenceService LinkIntel { get; }
+    public AuditService Audits { get; }
+    public FeedbackService Feedback { get; }
+    public CapsuleService Capsules { get; }
+    public WorkContextService WorkContext { get; }
+    public RecallService RecallSvc { get; }
+    public OpsService Ops { get; }
+    public SummaryService Summaries { get; }
+    public LinkGraphService Graph { get; }
+    public LowValueService LowValue { get; }
+    public RouteCardService Routes { get; }
+    public ReadPlanService ReadPlans { get; }
+    public TokenAuditService TokenAudit { get; }
+    public OrganisationScoreService OrgScore { get; }
+    public OrganisationCompiler Compiler { get; }
 
     /// <summary>
     /// Single coordination lock serialising scans and writes so they never overlap.
@@ -87,6 +104,23 @@ public sealed class VaultContext : IDisposable
         IndexCheck = new IndexVerifier(this);
         ProjectDetect = new ProjectDetectService(this);
         Related = new RelatedNotesService(this);
+        Organizer = new OrganizeService(this);
+        Maps = new MapService(this);
+        LinkIntel = new LinkIntelligenceService(this);
+        Audits = new AuditService(this);
+        Feedback = new FeedbackService(this);
+        Capsules = new CapsuleService(this);
+        WorkContext = new WorkContextService(this);
+        RecallSvc = new RecallService(this);
+        Ops = new OpsService(this);
+        Summaries = new SummaryService(this);
+        Graph = new LinkGraphService(this);
+        LowValue = new LowValueService(this);
+        Routes = new RouteCardService(this);
+        ReadPlans = new ReadPlanService(this);
+        TokenAudit = new TokenAuditService(this);
+        OrgScore = new OrganisationScoreService(this);
+        Compiler = new OrganisationCompiler(this);
     }
 
     public static VaultContext Create(string? cliVaultPath = null, Func<string, string?>? getEnv = null,

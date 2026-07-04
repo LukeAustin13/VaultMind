@@ -49,7 +49,7 @@ public sealed class ValidationDoctorTests
         Assert.Equal(tv.Root, report.VaultPath);
         Assert.Equal("cli --vault", report.ConfigSource);
         Assert.True(report.IndexExists);
-        Assert.Equal(24, report.NoteCount); // 14 fixture notes + 10 templates
+        Assert.Equal(26, report.NoteCount); // 14 fixture notes + 12 templates
         Assert.True(report.BrokenLinkCount >= 1);
         Assert.True(report.DuplicateTitleCount >= 1);
         Assert.NotNull(report.LastScanUtc);
