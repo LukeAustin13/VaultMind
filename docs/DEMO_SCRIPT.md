@@ -111,14 +111,15 @@ Run it twice — the second call is a no-op, never a duplicate link.
 
 ```bash
 mindvault map rebuild --project "MindVault"
-mindvault read "MindVault Map"
+mindvault read "MindVault"
 ```
 
-→ the v2 map: Start Here, agent-route pointer, goal, non-negotiables, decisions, tasks,
-risks, do-not-repeat rules, work areas, recent sessions, needs-review/orphans/broken-links
-health, large-notes-missing-summaries and an organisation score line — every entry a
-clickable `[[link]]` in Obsidian. Your own sections outside the generated markers survive
-every rebuild.
+→ the generated map block on the project hub: Start Here (route/capsule commands),
+decisions, tasks, risks, do-not-repeat rules, work areas, recent sessions, needs-review/
+orphans/broken-links health, large-notes-missing-summaries and an organisation score line —
+every entry a clickable `[[link]]` in Obsidian. The hub's own goal and non-negotiables sit
+above the markers (not duplicated in the block); your text outside the markers survives every
+rebuild, and an unchanged rebuild writes nothing at all.
 
 ## 6. The vault audits itself (40s)
 

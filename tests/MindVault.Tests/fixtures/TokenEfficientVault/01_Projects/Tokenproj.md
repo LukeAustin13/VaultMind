@@ -35,3 +35,11 @@ Ship the config pipeline v2 with validation at load time and zero silent fallbac
 ## Architecture
 
 See [[Architecture - Config pipeline]] for the load path.
+
+## Team Notes
+
+Humans wrote this paragraph and it must survive every rebuild.
+
+<!-- mindvault-generated:start -->
+stale block — rebuild pending
+<!-- mindvault-generated:end -->

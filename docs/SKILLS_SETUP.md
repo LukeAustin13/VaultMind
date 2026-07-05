@@ -46,7 +46,7 @@ degrade gracefully (they tell you MCP is missing), but they are useless without 
 | `mindvault-review-memory` | Persist review/risk/tech-debt findings and escalate serious ones into tasks/decisions |
 | `mindvault-architecture-memory` | Keep the vault's system picture true when structure is discovered or changed |
 | `mindvault-vault-hygiene` | Check vault health by severity, diagnose issues, recommend (never auto-apply) safe fixes |
-| `mindvault-organisation` | Keep the vault organised safely: dry-run placement, thought promotion, maps, link repair |
+| `mindvault-organisation` | Keep the vault organised safely: dry-run placement, thought promotion, hub map blocks, link repair |
 
 ## Where they live and how to install them
 

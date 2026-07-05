@@ -62,6 +62,7 @@ public sealed class LowValueService(VaultContext ctx)
         foreach (var n in ctx.Db.GetAllNotes().OrderBy(n => n.Path, StringComparer.OrdinalIgnoreCase))
         {
             if (n.Path.StartsWith("08_Templates/", StringComparison.OrdinalIgnoreCase)) continue;
+            // legacy shields: un-migrated 09_Maps files / type: map notes are not low-value noise.
             if (n.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase)) continue;
             if (string.Equals(n.Type, "map", StringComparison.OrdinalIgnoreCase)) continue;
             if (names is not null &&
@@ -115,15 +116,17 @@ public sealed class LowValueService(VaultContext ctx)
                 reasons.Add($"stale implementation log (last updated {d:yyyy-MM-dd})");
             }
 
+            // Content size excludes generated map/summary regions, so a hub carrying a map block
+            // is not flagged as a large unsummarized note.
             if (!isArchived &&
-                states.TryGetValue(n.Path, out var state) && state.Size >= SummaryService.LargeBodyChars)
+                states.TryGetValue(n.Path, out var state) && state.ContentSize >= SummaryService.LargeBodyChars)
             {
                 string raw;
                 try { raw = File.ReadAllText(PathGuard.ResolveNotePath(ctx.VaultRoot, n.Path)); }
                 catch (IOException) { raw = ""; }
                 if (raw.Length > 0 && !SummaryService.HasSummaryBlock(raw))
                 {
-                    reasons.Add($"large (~{TokenEstimator.EstimateBytes(state.Size)} tokens) with no summary" +
+                    reasons.Add($"large (~{TokenEstimator.EstimateBytes(state.ContentSize)} tokens) with no summary" +
                                 " — run summarize before reading it raw");
                 }
             }

@@ -81,15 +81,13 @@ public sealed class OrganisationScoreService(VaultContext ctx)
         Cat("linkCoverage", 100 - (linkable == 0 ? 0 : orphans.Count * 100 / linkable),
             $"{orphans.Count} of {linkable} linkable managed notes have no links in either direction");
 
-        // mapCoverage
+        // mapCoverage — the map now lives on the hub, so "mapped" means the hub carries a map block.
         var projects = scoped.Where(n => string.Equals(n.Type, "project", StringComparison.OrdinalIgnoreCase))
             .ToList();
         if (proj is not null && projects.Count == 0) projects = [proj];
-        var mapped = projects.Count(p => all.Any(m =>
-            m.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(m.Project, p.Title, StringComparison.OrdinalIgnoreCase)));
+        var mapped = projects.Count(HubHasMapBlock);
         Cat("mapCoverage", projects.Count == 0 ? 100 : mapped * 100 / projects.Count,
-            $"{mapped} of {projects.Count} project(s) have a map in 09_Maps");
+            $"{mapped} of {projects.Count} project hub(s) carry a map block");
 
         // summaryCoverage
         Cat("summaryCoverage",
@@ -135,7 +133,7 @@ public sealed class OrganisationScoreService(VaultContext ctx)
         // agentReadiness
         var readiness = new List<(bool Ok, string Label)>
         {
-            (projects.Count > 0 && mapped == projects.Count, "map exists"),
+            (projects.Count > 0 && mapped == projects.Count, "hub carries a map block"),
             (broken.Count == 0, "no broken links"),
             (scoped.Any(n => string.Equals(n.Type, "mistake", StringComparison.OrdinalIgnoreCase)),
                 "mistake ledger in use"),
@@ -176,6 +174,19 @@ public sealed class OrganisationScoreService(VaultContext ctx)
 
         return new OrganisationScoreReport(proj?.Title, overall, categories, strengths,
             weaknesses, fixes, ta.EstimatedTokenWaste, savings);
+    }
+
+    private bool HubHasMapBlock(NoteSummary proj)
+    {
+        try
+        {
+            return File.ReadAllText(ctx.Resolver.AbsolutePathOf(proj))
+                .Contains(MapService.MarkerStart, StringComparison.Ordinal);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
     }
 
     private bool RecentSession(List<NoteSummary> scoped) =>

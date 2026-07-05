@@ -3,7 +3,7 @@
 MindVault does not just search the vault — it keeps it organised. This page is the folder
 policy, the placement rules, and the safe `organize` workflow. Companions:
 [THOUGHTS_AND_MEMORY.md](THOUGHTS_AND_MEMORY.md) (note lifecycle), [LINKING.md](LINKING.md)
-(link intelligence), [MAPS.md](MAPS.md) (navigation notes).
+(link intelligence), [MAPS.md](MAPS.md) (the hub's generated map block).
 
 ## Folder policy
 
@@ -24,7 +24,6 @@ policy, the placement rules, and the safe `organize` workflow. Companions:
 06_Agent_Memory/Risks         open project dangers
 07_Reviews          audits, code/architecture/release reviews
 08_Templates        note templates (excluded from validation and search-adjacent features)
-09_Maps             generated map-of-content notes (see MAPS.md)
 99_Archive          archived notes — the only "delete"
 .mindvault          operational cache only (index, snapshots, backups, logs)
 ```
@@ -46,7 +45,9 @@ policy, the placement rules, and the safe `organize` workflow. Companions:
 | risk | `06_Agent_Memory/Risks` |
 | review | `07_Reviews` |
 | thought | `00_Inbox` or `06_Agent_Memory/Inbox` |
-| map | `09_Maps` |
+
+There is no `map` row: as of v0.7.0 the project map is a generated block on the project hub
+note ([MAPS.md](MAPS.md)), not a note that needs placing.
 
 **Design decision — per-project subfolders are OFF.** Tasks stay flat in `01_Projects`
 next to their hub, matching the existing create paths. Shallow and predictable beats
@@ -55,9 +56,9 @@ graveyard (the typed subfolders inside `06_Agent_Memory`). `bug`/`feature` go to
 `01_Projects` rather than agent memory because they are work items, not memories.
 
 These rules live in `PlacementPolicy` and drive `organize` and promotion only. The
-`outside-structure` **validation** contract is unchanged — upgrading MindVault adds zero
-new validation warnings to an existing vault (only the new `09_Maps` required folder,
-created by one `init` run).
+`outside-structure` **validation** contract is unchanged — upgrading MindVault adds zero new
+validation warnings to an existing vault. `09_Maps` is no longer a required folder (`init`
+does not create it); the project map lives on the hub instead.
 
 ## The organize workflow
 

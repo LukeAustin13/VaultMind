@@ -22,7 +22,7 @@ public sealed record SearchCandidate(
 
 public sealed record FrontmatterValueRow(long NoteId, string NotePath, string Value);
 
-public sealed record FileState(long ModifiedTicks, long Size, string BodyHash);
+public sealed record FileState(long ModifiedTicks, long Size, string BodyHash, long ContentSize);
 
 public sealed record NoteLinkRow(long NoteId, string NotePath, string Target, string TargetNorm);
 
@@ -35,7 +35,7 @@ public sealed record NoteLinkRow(long NoteId, string NotePath, string Target, st
 public sealed class IndexDatabase : IDisposable
 {
     /// <summary>Bump when tables or the FTS tokenizer change; mismatched indexes are reset and rescanned.</summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     private readonly SqliteConnection _conn;
     private readonly object _lock = new();
@@ -100,6 +100,7 @@ public sealed class IndexDatabase : IDisposable
                 body_hash TEXT NOT NULL,
                 modified_ticks INTEGER NOT NULL,
                 file_size INTEGER NOT NULL,
+                content_size INTEGER NOT NULL DEFAULT 0,
                 has_frontmatter INTEGER NOT NULL DEFAULT 0,
                 parse_error TEXT);
             CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title COLLATE NOCASE);
@@ -212,9 +213,9 @@ public sealed class IndexDatabase : IDisposable
         {
             using var insert = Cmd("""
                 INSERT INTO notes(path, title, stem, slug, type, status, project, created, updated,
-                                  body_hash, modified_ticks, file_size, has_frontmatter, parse_error)
+                                  body_hash, modified_ticks, file_size, content_size, has_frontmatter, parse_error)
                 VALUES($path, $title, $stem, $slug, $type, $status, $project, $created, $updated,
-                       $hash, $ticks, $size, $hasfm, $err);
+                       $hash, $ticks, $size, $csize, $hasfm, $err);
                 SELECT last_insert_rowid();
                 """, tx);
             AddNoteParams(insert, note);
@@ -225,7 +226,8 @@ public sealed class IndexDatabase : IDisposable
             using var update = Cmd("""
                 UPDATE notes SET title=$title, stem=$stem, slug=$slug, type=$type, status=$status,
                        project=$project, created=$created, updated=$updated, body_hash=$hash,
-                       modified_ticks=$ticks, file_size=$size, has_frontmatter=$hasfm, parse_error=$err
+                       modified_ticks=$ticks, file_size=$size, content_size=$csize,
+                       has_frontmatter=$hasfm, parse_error=$err
                 WHERE path=$path
                 """, tx);
             AddNoteParams(update, note);
@@ -290,11 +292,11 @@ public sealed class IndexDatabase : IDisposable
         lock (_lock)
         {
             var result = new Dictionary<string, FileState>(StringComparer.OrdinalIgnoreCase);
-            using var cmd = Cmd("SELECT path, modified_ticks, file_size, body_hash FROM notes");
+            using var cmd = Cmd("SELECT path, modified_ticks, file_size, body_hash, content_size FROM notes");
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
                 result[reader.GetString(0)] =
-                    new FileState(reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3));
+                    new FileState(reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3), reader.GetInt64(4));
             return result;
         }
     }
@@ -735,6 +737,7 @@ public sealed class IndexDatabase : IDisposable
         cmd.Parameters.AddWithValue("$hash", note.BodyHash);
         cmd.Parameters.AddWithValue("$ticks", note.ModifiedTicks);
         cmd.Parameters.AddWithValue("$size", note.FileSize);
+        cmd.Parameters.AddWithValue("$csize", note.ContentSize);
         cmd.Parameters.AddWithValue("$hasfm", note.HasFrontmatter ? 1 : 0);
         cmd.Parameters.AddWithValue("$err", (object?)note.ParseError ?? DBNull.Value);
     }

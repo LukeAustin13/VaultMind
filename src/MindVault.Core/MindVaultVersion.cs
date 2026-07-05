@@ -6,7 +6,7 @@ namespace MindVault.Core;
 /// </summary>
 public static class MindVaultVersion
 {
-    public const string Current = "0.6.0";
+    public const string Current = "0.7.0";
 
     /// <summary>
     /// The MCP tool surface size, reported by brain-ops. A guard test asserts this equals

@@ -28,7 +28,7 @@ Each suggestion scores concrete, deterministic signals:
 A candidate needs a **score of 2 or more** to appear at all — one weak signal (generic
 word overlap, mere same-project membership) is noise, not a suggestion. Score ≥ 4 is
 `high` confidence, otherwise `medium`. Already-linked pairs (either direction), archived
-notes, templates, maps and raw thoughts are never suggested.
+notes, templates, legacy map files and raw thoughts are never suggested.
 
 Example output:
 
@@ -68,8 +68,8 @@ MCP: `mindvault_find_broken_links`, `mindvault_find_orphans`.
 - Broken-link detection covers frontmatter `links:` and body `[[links]]` uniformly and
   skips template-authored links.
 - Orphan detection excludes thoughts (inbox captures are *supposed* to be unlinked),
-  templates, maps and archived notes. Fix orphans by linking them (`links suggest` on the
-  orphan helps) or archiving what is obsolete.
+  templates, legacy map files and archived notes. Fix orphans by linking them (`links
+  suggest` on the orphan helps) or archiving what is obsolete.
 - Both outputs are capped at 100 rows with a `truncated` flag.
 
 ## Rules

@@ -69,5 +69,5 @@ Copy the folders under `skills/` into your project's `.claude/skills/` (or
 | MCP server exits immediately | It prints the reason to stderr; usually the `env` block is missing `MINDVAULT_VAULT_PATH` |
 | Raspberry Pi updates | `./scripts/pi-update.sh` — see [UPDATING.md](UPDATING.md) |
 
-Deeper docs: [SETUP.md](SETUP.md) (full setup tour), [OP_WORKFLOW.md](OP_WORKFLOW.md)
+Deeper docs: [SETUP.md](SETUP.md) (full setup tour), [WORKFLOW.md](WORKFLOW.md)
 (day-to-day loop), [AGENT_WORKFLOWS.md](AGENT_WORKFLOWS.md) (how agents should use the tools).

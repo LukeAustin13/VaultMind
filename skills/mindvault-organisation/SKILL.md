@@ -1,6 +1,6 @@
 ---
 name: mindvault-organisation
-description: Keep the MindVault vault organised, linked and navigable without being destructive. Use when notes look misfiled, when the inbox has unpromoted thoughts, when a project needs a map, when links/orphans need repair, or during a periodic tidy-up the user asked for. Suggest first, apply only with approval.
+description: Keep the MindVault vault organised, linked and navigable without being destructive. Use when notes look misfiled, when the inbox has unpromoted thoughts, when a project's hub map block needs building or refreshing, when links/orphans need repair, or during a periodic tidy-up the user asked for. Suggest first, apply only with approval.
 ---
 
 # MindVault: Organise the Vault
@@ -14,7 +14,7 @@ Use when:
 - The user asks to tidy, organise or review vault structure.
 - You notice misfiled notes (a decision in the inbox, a risk in the wrong folder).
 - The inbox holds raw thoughts that have been confirmed as durable knowledge.
-- A project has grown and needs a navigation map, or its map is stale.
+- A project has grown and needs its hub map block built, or that block is stale.
 - Search keeps missing things because links, aliases or frontmatter are poor.
 
 Do NOT use for: archiving sweeps the user did not ask for, renaming files by hand, or
@@ -37,22 +37,24 @@ Do NOT use for: archiving sweeps the user did not ask for, renaming files by han
 5. **Link with reasons.** Run `mindvault_suggest_links` for the note or project; each
    suggestion carries a reason and confidence. Apply the ones that make sense with
    `mindvault_link_notes` — one at a time, never blindly all of them.
-6. **Keep maps fresh.** After meaningful memory changes, `mindvault_rebuild_map` (or
-   `mindvault_create_map` the first time). Read a map via `mindvault_list_maps` +
+6. **Keep the hub map block fresh.** After meaningful memory changes, `mindvault_rebuild_map`
+   (or `mindvault_create_map` the first time) refreshes the generated block on the project
+   hub note — human text outside the markers is preserved, and an unchanged rebuild writes
+   nothing. `mindvault_list_maps` shows which projects have a map block; read one with
    `mindvault_read_note` for a compact project overview instead of listing the vault.
 7. **Audit periodically.** `mindvault_find_broken_links`, `mindvault_find_orphans`,
    `mindvault_audit_frontmatter` and `mindvault_audit_aliases` report problems with a
    proposed fix each. Fix what is mechanical (frontmatter values, missing links) with the
    normal tools; report the rest to the user.
 8. **Compile the navigation layer.** `mindvault_compile_brain` (dry-run by default) builds
-   everything agent-facing in one pass: maps, generated summaries for large notes
+   everything agent-facing in one pass: hub map blocks, generated summaries for large notes
    (`mindvault_generate_summaries`), the typed link graph (`mindvault_build_graph`) and
    the health/score reports. `mindvault_organisation_score` says WHY the vault is or is
    not well organised — its weaknesses list is the prioritised tidy-up plan, and
    `mindvault_token_audit` shows the token cost of leaving it messy.
 
 Expected final behaviour: every note has an obvious home, thoughts and durable memory stay
-distinct, maps mirror reality, and a human opening Obsidian understands the structure.
+distinct, hub map blocks mirror reality, and a human opening Obsidian understands the structure.
 
 ## Do not
 
@@ -60,7 +62,7 @@ distinct, maps mirror reality, and a human opening Obsidian understands the stru
 - Do not bulk-move, bulk-link or bulk-promote anything.
 - Do not promote a thought into durable memory unless it was confirmed.
 - Do not apply link suggestions without reading their reasons.
-- Do not touch the generated block markers in map notes; human text outside them is sacred.
+- Do not touch the generated block markers on the project note; human text outside them is sacred.
 - Do not create deep folder hierarchies — the placement policy is deliberately shallow.
 - Do not delete anything; archiving via mindvault_archive_note is the only removal, and only
   when the user asks.
@@ -69,7 +71,7 @@ distinct, maps mirror reality, and a human opening Obsidian understands the stru
 
 - One `mindvault_organize_vault` dry-run tells you everything misplaced — do not walk the
   vault with `mindvault_list_notes` looking for problems.
-- Maps are the cheap orientation read: one note instead of a dozen queries.
+- The hub's map block is the cheap orientation read: one note instead of a dozen queries.
 - Audits return proposals — act on them directly instead of re-diagnosing.
 - A capture is one `mindvault_capture_thought` call; a promotion is one
   `mindvault_promote_note` call. No read-modify-write chains.

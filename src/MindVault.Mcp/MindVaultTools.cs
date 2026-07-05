@@ -351,17 +351,17 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_create_map", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Create a generated map-of-content note for a project in 09_Maps: hub link, current goal, key decisions, active tasks, open risks, mistakes, constraints, recent logs, reviews and orphans — a compact navigation layer for humans and agents. Fails if the map already exists (use mindvault_rebuild_map).")]
+    [Description("Add a generated map block to a project's hub note (the type: project note): start-here pointers, key decisions, active tasks, open risks, mistakes, do-not-repeat rules, constraints, work areas, recent sessions, and needs-review/orphans/broken-links/unsummarized health with an organisation score — a compact navigation layer for humans and agents, appended between the mindvault-generated markers at the end of the hub body. Fails if the hub already has a map block (use mindvault_rebuild_map). Any legacy 09_Maps file is migrated.")]
     public string CreateMap(
         [Description("Project name (alias or repo name also works)")] string project) =>
         Safe(() =>
         {
             var r = ctx.Maps.Create(project);
-            return new { path = r.Path, message = r.Message, warnings = r.Warnings };
+            return new { path = r.Path, snapshot = r.SnapshotPath, message = r.Message, warnings = r.Warnings };
         });
 
     [McpServerTool(Name = "mindvault_rebuild_map", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Refresh a project map's generated block from current vault state (v2: start-here, agent route pointer, goal, non-negotiables, decisions/tasks/risks/mistakes, do-not-repeat rules, work areas, sessions, needs-review/orphans/broken-links health and an organisation score). Only the content between the mindvault-generated markers is rewritten — human text outside them is preserved verbatim. Snapshots first.")]
+    [Description("Refresh the map block on a project's hub note from current vault state: start-here, agent route pointer, decisions/tasks/risks/mistakes, do-not-repeat rules, work areas, sessions, needs-review/orphans/broken-links health and an organisation score. Only the content between the mindvault-generated markers is rewritten — human text (and any summary block) is preserved verbatim. Snapshots first; when the block is already current it writes nothing. Any legacy 09_Maps file is migrated.")]
     public string RebuildMap(
         [Description("Project name (alias or repo name also works)")] string project) =>
         Safe(() =>
@@ -371,7 +371,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_list_maps", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("List the map-of-content notes in 09_Maps with their project and last update. Read a map for a compact project overview instead of listing the whole vault.")]
+    [Description("List project hubs and whether each carries a generated map block, plus any remaining legacy 09_Maps files (flagged as legacy to migrate). Read a project's map block for a compact overview instead of listing the whole vault.")]
     public string ListMaps() =>
         Safe(() =>
         {
@@ -380,23 +380,25 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_get_project_map", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Read a project's map note — the cheapest orientation read: goal, decisions, risks, do-not-repeat rules and health in one payload. Prefer this over multiple searches when starting on a project.")]
+    [Description("Read a project's map block from its hub note — the cheapest orientation read: decisions, risks, do-not-repeat rules and health in one payload. Prefer this over multiple searches when starting on a project.")]
     public string GetProjectMap(
         [Description("Project name (alias or repo name also works)")] string project) =>
         Safe(() =>
         {
             var (proj, _) = ctx.ProjectDetect.ResolveOrThrow(project);
-            var maps = ctx.Maps.List();
-            var map = maps.FirstOrDefault(m =>
-                string.Equals(m.Project, proj.Title, StringComparison.OrdinalIgnoreCase));
-            if (map is null)
-                throw new MindVaultException(
-                    $"No map for {proj.Title}. Run mindvault_create_map first.");
-            var raw = File.ReadAllText(PathGuard.ResolveNotePath(ctx.VaultRoot, map.Path))
+            var raw = File.ReadAllText(PathGuard.ResolveNotePath(ctx.VaultRoot, proj.Path))
                 .Replace("\r\n", "\n");
             FrontmatterCodec.TryExtract(raw, out _, out var body);
-            if (body.Length > MaxBodyChars) body = body[..MaxBodyChars] + "\n… [truncated]";
-            return new { path = map.Path, project = proj.Title, updated = map.Updated, content = body };
+            var located = GeneratedBlocks.Locate(body, MapService.MarkerStart, MapService.MarkerEnd);
+            if (located.Kind == GeneratedBlocks.BlockKind.Ambiguous)
+                throw new MindVaultException(
+                    MapService.AmbiguityMessage(proj.Title, located.StartCount, located.EndCount));
+            if (located.Kind != GeneratedBlocks.BlockKind.Single)
+                throw new MindVaultException(
+                    $"No map block on {proj.Title}. Run mindvault_create_map first.");
+            var content = body[(located.Start + MapService.MarkerStart.Length)..located.End].Trim('\n');
+            if (content.Length > MaxBodyChars) content = content[..MaxBodyChars] + "\n… [truncated]";
+            return new { path = proj.Path, project = proj.Title, updated = proj.Updated, content };
         });
 
     [McpServerTool(Name = "mindvault_build_route_card", ReadOnly = true, Idempotent = true, OpenWorld = false)]

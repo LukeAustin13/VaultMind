@@ -7,7 +7,7 @@ public static class VaultStructure
     public static readonly IReadOnlyList<string> RequiredFolders =
     [
         "00_Inbox", "01_Projects", "02_Areas", "03_Resources", "04_Decisions",
-        "05_Prompts", "06_Agent_Memory", "07_Reviews", "08_Templates", "09_Maps",
+        "05_Prompts", "06_Agent_Memory", "07_Reviews", "08_Templates",
         "99_Archive", ".mindvault",
     ];
 

@@ -31,3 +31,13 @@ Ship the organisation engine fixture.
 ## Risks
 
 ## Next Actions
+
+HUMAN-LINE-KEEP-ME
+
+<!-- mindvault-generated:start -->
+stale generated content
+<!-- mindvault-generated:end -->
+
+## My Notes
+
+Keep me too.

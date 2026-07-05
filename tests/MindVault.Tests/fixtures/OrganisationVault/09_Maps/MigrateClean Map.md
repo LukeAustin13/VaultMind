@@ -3,21 +3,15 @@ type: map
 status: active
 created: 2026-07-01
 updated: 2026-07-01
-project: OrgProj
+project: MigrateClean
 tags:
   - map
 links:
-  - "[[OrgProj]]"
+  - "[[MigrateClean]]"
 ---
 
-# OrgProj Map
-
-HUMAN-LINE-KEEP-ME
+# MigrateClean Map
 
 <!-- mindvault-generated:start -->
-stale generated content
+old generated content, nothing a human wrote
 <!-- mindvault-generated:end -->
-
-## My Notes
-
-Keep me too.

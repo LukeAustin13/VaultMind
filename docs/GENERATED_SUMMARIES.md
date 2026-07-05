@@ -7,8 +7,8 @@ headings/bullets, and `agentUse` a fixed phrase per note type.
 
 ## The marker block
 
-The block lives between two markers, distinct from the map's `mindvault-generated` markers so
-both can coexist in one note:
+The block lives between two markers, distinct from the map block's `mindvault-generated`
+markers so both can coexist in one note — a project hub commonly carries both:
 
 ```
 <!-- mindvault-summary:start -->
@@ -46,10 +46,11 @@ Fields: `summary`, `agentUse`, `keyPoints` (omitted if none), `needsReview` (onl
 
 Project-wide runs (`ForProject`) only consider **managed, non-thought** notes outside
 `08_Templates/` and the archive, not archived/superseded, whose file size is at least
-`LargeBodyChars = 2400` (~600 tokens). Maps and templates are skipped entirely (`Propose`
-returns null for them). Single-note runs (`ForNote`) summarize the one note directly and
-error if it is a map/template. Project runs cap at 100 proposals per run (a warning names the
-overflow).
+`LargeBodyChars = 2400` (~600 tokens) — measured **excluding** any generated map block, so a
+hub is not pushed over the threshold by its own map content. Templates are skipped entirely,
+as are any legacy `09_Maps` map files (`Propose` returns null for them). Single-note runs
+(`ForNote`) summarize the one note directly and error if it is a template or a legacy map
+file. Project runs cap at 100 proposals per run (a warning names the overflow).
 
 ## Dry-run, apply and snapshots
 
@@ -57,6 +58,14 @@ Dry-run is the default: `apply` must be true to write. On apply the block is spl
 `ctx.Writer.ReplaceBody`, which is **snapshot-first** — human text is never touched, only the
 block. `Splice` replaces an existing block in place, or inserts a new one after the H1 (or at
 the top).
+
+The same marker-ambiguity protection the map block uses applies here: the summary splice
+classifies the `mindvault-summary` marker occurrences as None, Single or Ambiguous, and on
+**Ambiguous** (the marker strings appear more than once, or malformed) it **refuses to write** —
+no splice, no snapshot, nothing changed — and warns you to edit the note so the literal marker
+appears exactly once. MindVault never guesses which occurrence is the real block, because
+guessing risks overwriting human text. If you quote a summary marker in prose, break the literal
+up so it is not an exact substring match. See [MAPS.md](MAPS.md#when-the-markers-are-ambiguous-mindvault-refuses-to-write).
 
 ```bash
 mindvault summarize --project "MindVault"            # dry-run preview

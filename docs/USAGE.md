@@ -1,7 +1,7 @@
-# MindVault OP Usage
+# MindVault Usage
 
-The short version of everything the hardened MindVault can do, with commands. All commands
-accept `--vault <path>` and most accept `--json`.
+The short version of everything MindVault can do, with commands. All commands accept
+`--vault <path>` and most accept `--json`.
 
 ## Daily driving
 

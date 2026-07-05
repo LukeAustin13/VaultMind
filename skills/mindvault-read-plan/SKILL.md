@@ -16,7 +16,7 @@ Use when:
 - You are about to modify code and only need constraints/risks/do-not-repeat rules.
 
 Do NOT use for: open-ended exploration of an unfamiliar vault (use the route card or the
-project map first), or anything that writes.
+hub's map block first), or anything that writes.
 
 ## Required workflow
 
@@ -44,8 +44,8 @@ Expected final behaviour: at most 5 reads, executed in order, ended by a stop co
 
 ## Efficiency rules
 
-- Maps and hubs come first in every plan because one such read replaces several raw-note
-  reads.
+- The project hub (with its map block) comes first in every plan because one such read
+  replaces several raw-note reads.
 - Scope each read: pass `section` or `maxChars` to `mindvault_read_note` when the step
   only needs one part of the note.
 - The stop conditions are the budget: reads after the stop line are pure token waste.

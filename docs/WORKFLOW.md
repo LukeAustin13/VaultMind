@@ -1,7 +1,7 @@
-# The OP Workflow
+# Daily Workflow
 
-How to actually run MindVault as your project brain across all repos. No ceremony that
-doesn't pay for itself.
+How to run MindVault as your project brain across all repos, without ceremony that doesn't
+pay for itself.
 
 ## The standing setup
 

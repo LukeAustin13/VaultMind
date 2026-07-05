@@ -38,7 +38,7 @@ produce the same from/to/type key, the higher-confidence edge wins.
 
 ## Archived exclusion — except supersedes
 
-Templates, maps and thoughts are ineligible endpoints. Archived notes (in the archive folder
+Templates, legacy map files and thoughts are ineligible endpoints. Archived notes (in the archive folder
 or `status: archived`) are excluded from every edge **except** `supersedes` — the one
 relationship that is meant to touch archived history. Frontmatter membership and title-collision
 edges skip archived notes entirely.

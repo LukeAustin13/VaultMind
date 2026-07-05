@@ -30,18 +30,18 @@ run; "not run: <reason>" is the honest alternative.
 - [ ] `docker build -t mindvault:local .` (or state that CI buildx is the only validation)
 - [ ] `docker compose -f docker-compose.example.yml config` parses
 - [ ] Compose still binds `127.0.0.1:7777:7777` by default (guard test also checks)
-- [ ] Pi smoke (when hardware available): the checklist in
-      `docs/SUPERPOWER_FINAL_AUDIT.md` §Pi validation
+- [ ] Pi smoke (when hardware available): follow the Raspberry Pi walkthrough in
+      `docs/DOCKER.md`
 
 ## Docs and skills
 
 - [ ] README tool/command counts match reality (guard tests pin the MCP surface)
 - [ ] `docs/MCP_SETUP.md` lists every tool
-- [ ] Skills safety check is green (part of `dotnet test`) — 8 skills, 5 sections each,
+- [ ] Skills safety check is green (part of `dotnet test`) — 13 skills, 5 sections each,
       safe tools only
 
 ## Final honesty pass
 
-- [ ] `docs/SUPERPOWER_FINAL_AUDIT.md` (or its successor) reflects what is actually true
-      of this version — limitations included
+- [ ] The README "Known limitations" section reflects what is actually true of this
+      version — limitations included
 - [ ] Everything not run is listed as not run

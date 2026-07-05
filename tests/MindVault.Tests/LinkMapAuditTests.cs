@@ -109,11 +109,13 @@ public sealed class LinkMapAuditTests
     public void MapRebuildRefreshesGeneratedBlockAndPreservesHumanText()
     {
         using var tv = Vault();
+        // OrgProj's hub carries a stale map block with human text on both sides of it.
         var result = tv.Ctx.Maps.Rebuild("OrgProj");
         Assert.Empty(result.Warnings);
         Assert.NotNull(result.SnapshotPath);
+        Assert.Equal("01_Projects/OrgProj.md", result.Path);
 
-        var text = tv.ReadNote("09_Maps/OrgProj Map.md");
+        var text = tv.ReadNote("01_Projects/OrgProj.md");
         Assert.Contains("HUMAN-LINE-KEEP-ME", text);
         Assert.Contains("Keep me too.", text);
         Assert.DoesNotContain("stale generated content", text);
@@ -123,7 +125,7 @@ public sealed class LinkMapAuditTests
 
         // Rebuilding again must not multiply marker blocks or lose the human text.
         tv.Ctx.Maps.Rebuild("OrgProj");
-        text = tv.ReadNote("09_Maps/OrgProj Map.md");
+        text = tv.ReadNote("01_Projects/OrgProj.md");
         Assert.Single(Regex.Matches(text, Regex.Escape(MapService.MarkerStart)));
         Assert.Contains("HUMAN-LINE-KEEP-ME", text);
     }
@@ -132,18 +134,54 @@ public sealed class LinkMapAuditTests
     public void MapCreateWorksOncePerProjectAndListsIt()
     {
         using var tv = Vault();
+        // AliasTwinA's hub has no map block yet — create adds one to the hub.
         var created = tv.Ctx.Maps.Create("AliasTwinA");
-        Assert.Equal("09_Maps/AliasTwinA Map.md", created.Path);
+        Assert.Equal("01_Projects/AliasTwinA.md", created.Path);
+        Assert.Contains(MapService.MarkerStart, tv.ReadNote("01_Projects/AliasTwinA.md"));
         Assert.Throws<MindVaultException>(() => tv.Ctx.Maps.Create("AliasTwinA"));
 
         var maps = tv.Ctx.Maps.List();
-        Assert.Contains(maps, m => m.Path == "09_Maps/AliasTwinA Map.md");
-        Assert.Contains(maps, m => m.Path == "09_Maps/OrgProj Map.md");
+        Assert.Contains(maps, m => m.Path == "01_Projects/AliasTwinA.md" && m.HasMapBlock);
+        Assert.Contains(maps, m => m.Path == "01_Projects/OrgProj.md" && m.HasMapBlock);
 
         var (code, stdout) = RunCli(tv, "map", "list", "--json");
         Assert.Equal(0, code);
         using var doc = JsonDocument.Parse(stdout);
         Assert.True(doc.RootElement.GetProperty("count").GetInt32() >= 2);
+    }
+
+    // ---------- legacy map migration ----------
+
+    [Fact]
+    public void LegacyMapWithNoHumanTextIsArchivedAndTheHubGainsABlock()
+    {
+        using var tv = Vault();
+        Assert.True(File.Exists(tv.Abs("09_Maps/MigrateClean Map.md")));
+
+        var result = tv.Ctx.Maps.Create("MigrateClean");
+        Assert.Equal("01_Projects/MigrateClean.md", result.Path);
+        Assert.Contains(MapService.MarkerStart, tv.ReadNote("01_Projects/MigrateClean.md"));
+        Assert.Contains("archived", result.Message, StringComparison.OrdinalIgnoreCase);
+
+        // The legacy file is moved out of 09_Maps into the archive, never deleted.
+        Assert.False(File.Exists(tv.Abs("09_Maps/MigrateClean Map.md")));
+        Assert.True(File.Exists(tv.Abs("99_Archive/MigrateClean Map.md")));
+    }
+
+    [Fact]
+    public void LegacyMapWithHumanTextIsLeftUntouchedWithAWarning()
+    {
+        using var tv = Vault();
+        var before = File.ReadAllBytes(tv.Abs("09_Maps/MigrateKeep Map.md"));
+
+        var result = tv.Ctx.Maps.Create("MigrateKeep");
+        Assert.Contains(MapService.MarkerStart, tv.ReadNote("01_Projects/MigrateKeep.md"));
+        Assert.Contains(result.Warnings,
+            w => w.Contains("09_Maps/MigrateKeep Map.md") && w.Contains("manually"));
+
+        // The legacy file (and its human text) survives byte-for-byte.
+        Assert.True(File.Exists(tv.Abs("09_Maps/MigrateKeep Map.md")));
+        Assert.Equal(before, File.ReadAllBytes(tv.Abs("09_Maps/MigrateKeep Map.md")));
     }
 
     // ---------- audits ----------

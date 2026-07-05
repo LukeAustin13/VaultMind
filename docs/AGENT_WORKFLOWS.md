@@ -26,7 +26,7 @@ mindvault_end_session (summary, tests, followUps)   ← one call: handoff
 | Starting substantial work | `mindvault_start_session` |
 | What should I read first (and skip)? | `mindvault_build_route_card` (goal/file/query in; read-first ≤5 + do-not-read out) |
 | Strict tool-call discipline | `mindvault_build_read_plan` (ordered reads + stop conditions) |
-| Cheapest project orientation | `mindvault_get_project_map` (one read: goal, decisions, risks, health) |
+| Cheapest project orientation | `mindvault_get_project_map` (one read: the hub's map block — decisions, risks, health) |
 | What should agents NOT read? | `mindvault_find_low_value_notes` (reasons on every row) |
 | Where do the tokens go? | `mindvault_token_audit` (largest, unsummarized, capsule vs route) |
 | How well organised is the brain? | `mindvault_organisation_score` (11 categories with evidence) |
@@ -42,7 +42,7 @@ mindvault_end_session (summary, tests, followUps)   ← one call: handoff
 | Full brain state in one call | `mindvault_brain_ops` |
 | Unpromoted drafts | `mindvault_list_inbox` |
 | Quick orientation, no session | `mindvault_get_context_pack` / `mindvault_get_project_context` (`detailLevel: brief`) |
-| One-page project overview | `mindvault_list_maps` + read the map (`mindvault_rebuild_map` after big changes) |
+| One-page project overview | `mindvault_get_project_map` (the hub's map block; `mindvault_rebuild_map` after big changes) |
 | Find a specific memory | `mindvault_search` (project scope + filters; `explain` for debugging) |
 | Read one note (or one section) | `mindvault_read_note` (`section`/`maxChars` scope the read) |
 | Unsure it's true or durable yet | `mindvault_capture_thought` (agent inbox, not memory) |

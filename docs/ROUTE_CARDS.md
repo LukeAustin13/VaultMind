@@ -15,15 +15,16 @@ exactly one input, in this precedence:
   violating recorded memory".
 - **goal / query** — seeds work-context by query; purpose is "achieve: …" or "answer: …".
 - **neither** — no work-context; purpose is "general orientation on `<project>`", and the
-  card falls back to the project's own trail (map, hub, session log, recent decisions,
-  active tasks).
+  card falls back to the project's own trail (the hub and its map block, the session log,
+  recent decisions, active tasks).
 
 ## The three read lists
 
 - **readFirst** — up to `maxFirst` (`budget.MaxNotes` clamped 1–10; default
-  `DefaultReadFirst = 5`). The map and hub lead, then work-context suggested reads (or the
-  project trail). Each gets a summary snippet: the generated `summary:` line wins, else the
-  first plain-text line, truncated to `budget.MaxSnippetChars`.
+  `DefaultReadFirst = 5`). The project hub leads (its map block is the one-read orientation),
+  then work-context suggested reads (or the project trail). Each gets a summary snippet: the
+  generated `summary:` line wins, else the first plain-text line, truncated to
+  `budget.MaxSnippetChars`.
 - **readIfNeeded** — the next 5 candidates, plus anything demoted for budget.
 - **doNotRead** — up to `DoNotReadCap = 8` low-value notes, ordered by reason count.
 

@@ -56,12 +56,12 @@ public sealed partial class WorkContextService(VaultContext ctx)
         bool Excluded(NoteSummary n) =>
             n.Id == proj.Id
             || n.Path.StartsWith("08_Templates/", StringComparison.OrdinalIgnoreCase)
-            || n.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase)
+            || n.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase) // legacy shield: un-migrated map files
             || n.Path.StartsWith(archive + "/", StringComparison.OrdinalIgnoreCase)
             || n.Status is not null && (n.Status.Equals("archived", StringComparison.OrdinalIgnoreCase) ||
                                         n.Status.Equals("superseded", StringComparison.OrdinalIgnoreCase))
             || string.Equals(n.Type, "thought", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(n.Type, "map", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(n.Type, "map", StringComparison.OrdinalIgnoreCase) // legacy shield: type: map notes
             || FeedbackService.For(n, fb).Hidden;
 
         void Add(NoteSummary? n, string reason, int score)

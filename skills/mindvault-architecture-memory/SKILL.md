@@ -33,9 +33,9 @@ already answers, or speculative designs nobody approved.
 5. When a structural change makes recorded architecture wrong, fix the note the same way —
    append a dated correction to the relevant section rather than leaving the stale text
    uncontradicted. Flag the contradiction to the user if it is surprising.
-6. If the project keeps a map note (`mindvault_list_maps`), finish with
+6. If the project's hub carries a map block (`mindvault_list_maps`), finish with
    `mindvault_rebuild_map` so the navigation layer reflects the new structural picture —
-   it only rewrites the generated block, never human text.
+   it only rewrites the generated block on the hub, never human text.
 
 Expected final behaviour: one true, compact system picture per project — bullets and
 arrows a future agent absorbs in one read, corrections dated so the newest statement wins.

@@ -121,6 +121,7 @@ public sealed class LinkGraphService(VaultContext ctx)
 
         bool Ineligible(NoteSummary n) =>
             n.Path.StartsWith("08_Templates/", StringComparison.OrdinalIgnoreCase) ||
+            // legacy shields: un-migrated 09_Maps files / type: map notes stay out of the graph.
             n.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(n.Type, "map", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(n.Type, "thought", StringComparison.OrdinalIgnoreCase);

@@ -13,13 +13,13 @@ tools instead of raw filesystem access.
   (the HTTP mode powers the [Docker / Raspberry Pi deployment](docs/DOCKER.md)) — including
   repo-to-project detection, [context capsules](docs/CONTEXT_CAPSULES.md) (7 modes,
   char-budgeted), [work-context](docs/WORK_CONTEXT.md) for the file you are editing,
-  time-window [recall](docs/SUPERPOWER_BRAIN_RESULTS.md), a session lifecycle
+  time-window recall, a session lifecycle
   (start/checkpoint/handoff/recent), a [mistake ledger](docs/MISTAKE_LEDGER.md) whose
   lessons surface as do-not-repeat rules, deterministic
   [feedback signals](docs/FEEDBACK_SIGNALS.md), a
   [content risk scanner](docs/SAFETY_SCANNER.md) that refuses secrets, the
   [organisation layer](docs/ORGANISATION.md) (placement proposals, thought promotion,
-  generated maps, link intelligence, audits) and a one-call brain-ops rollup.
+  generated project map blocks, link intelligence, audits) and a one-call brain-ops rollup.
 - A **SQLite FTS5 index** that is pure, rebuildable cache — your Markdown files stay canonical.
 - A **safety layer**: every mutation snapshots the note first, writes are confined to the vault,
   archive replaces delete, and YAML frontmatter is validated after every write.
@@ -122,11 +122,11 @@ dotnet run --project src/MindVault.Cli -- <command>
 
 Search is ranked (title-weighted bm25, recency boost, archived deprioritised) with
 `--explain` to see why results matched, date filters, and project-first scoping.
-See [docs/OP_USAGE.md](docs/OP_USAGE.md) for the full command tour, and
+See [docs/USAGE.md](docs/USAGE.md) for the full command tour, and
 [docs/CONTEXT_PACKS.md](docs/CONTEXT_PACKS.md) / [docs/DECISION_GRAPH.md](docs/DECISION_GRAPH.md) /
 [docs/SESSION_WORKFLOW.md](docs/SESSION_WORKFLOW.md) / [docs/VAULT_HYGIENE.md](docs/VAULT_HYGIENE.md)
 for the concepts. Agent-side guidance lives in [docs/AGENT_WORKFLOWS.md](docs/AGENT_WORKFLOWS.md);
-the practical day-to-day loop is [docs/OP_WORKFLOW.md](docs/OP_WORKFLOW.md).
+the practical day-to-day loop is [docs/WORKFLOW.md](docs/WORKFLOW.md).
 
 Most commands accept `--json` for machine-readable output (failures carry a stable `code` —
 see [docs/ERROR_CODES.md](docs/ERROR_CODES.md)), `--vault <path>` to override the configured
@@ -198,7 +198,7 @@ session-bracketed work (brief in, hand off out), route cards and read plans befo
 broad search (read less, stop sooner), context packs before coding, draft checks before
 creating notes, decision capture with proper supersede lifecycle, task sync, review
 memory, architecture memory, vault hygiene and safe organisation (dry-run placement,
-thought promotion, maps, link repair). Drop the folders into any project's `.claude/skills/` once the
+thought promotion, hub map blocks, link repair). Drop the folders into any project's `.claude/skills/` once the
 MCP server is configured. The skills reference only the safe `mindvault_*` tools — no shell,
 no raw file writes (enforced by a test). Setup, install and per-skill test instructions:
 [docs/SKILLS_SETUP.md](docs/SKILLS_SETUP.md).
@@ -253,10 +253,8 @@ src/MindVault.Cli    the mindvault CLI
 src/MindVault.Mcp    MCP server, stdio + token-protected HTTP (official C# MCP SDK)
 skills/              portable Claude Code skills pack (see docs/SKILLS_SETUP.md)
 tests/MindVault.Tests xUnit suite + fixture vault
-docs/                setup, MCP, Docker, skills, schema, tooling and implementation notes
+docs/                setup, MCP, Docker, skills, schema and tooling reference
 config/              example config (copy to *.local.json, which is git-ignored)
 Dockerfile           multi-stage, multi-arch (amd64/arm64) container build
 docker-compose.example.yml  LAN-safe compose template (see docs/DOCKER.md)
 ```
-
-`PLAN.md` is the product specification this implementation follows.

@@ -8,7 +8,7 @@ note, how to avoid duplicates, how to hand off.
 ## Structure contract
 
 Every skill has the same five sections, and a test in the MindVault repo
-(`SkillContractTests`) fails the build if one is missing:
+(`AgentEvalTests.EverySkillHasTheFiveRequiredSections`) fails the build if one is missing:
 
 | Section | Answers |
 | --- | --- |
@@ -34,7 +34,7 @@ Every skill has the same five sections, and a test in the MindVault repo
 | `mindvault-review-memory` | Persist review findings; escalate criticals |
 | `mindvault-architecture-memory` | Keep one true system picture per project |
 | `mindvault-vault-hygiene` | Severity-grouped health report; fixes only on approval |
-| `mindvault-organisation` | Dry-run placement, thought promotion, maps, link repair |
+| `mindvault-organisation` | Dry-run placement, thought promotion, hub map blocks, link repair |
 
 ## Hard safety line
 

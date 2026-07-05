@@ -46,6 +46,11 @@ public sealed class TokenAuditService(VaultContext ctx)
 
         int TokensOf(NoteSummary n) =>
             states.TryGetValue(n.Path, out var s) ? TokenEstimator.EstimateBytes(s.Size) : 0;
+        // Content size excludes generated map/summary regions: a hub carrying a map block is not
+        // a "large" note by human content, so large/too-large DECISIONS gate on this. Accounting
+        // sums and reported per-note figures stay raw — a full read really does cost every byte.
+        long ContentSizeOf(NoteSummary n) =>
+            states.TryGetValue(n.Path, out var s) ? s.ContentSize : 0;
         bool IsArchived(NoteSummary n) =>
             n.Path.StartsWith(archive + "/", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(n.Status, "archived", StringComparison.OrdinalIgnoreCase);
@@ -70,9 +75,10 @@ public sealed class TokenAuditService(VaultContext ctx)
         var largeCount = 0;
         var largeWithSummary = 0;
         foreach (var n in notes.Where(n => IsActive(n) &&
+                     // legacy shields: un-migrated 09_Maps files / type: map notes never need summaries.
                      !string.Equals(n.Type, "map", StringComparison.OrdinalIgnoreCase) &&
                      !n.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase) &&
-                     states.TryGetValue(n.Path, out var s) && s.Size >= SummaryService.LargeBodyChars)
+                     ContentSizeOf(n) >= SummaryService.LargeBodyChars)
                      .OrderBy(n => n.Path, StringComparer.OrdinalIgnoreCase))
         {
             largeCount++;
@@ -83,7 +89,10 @@ public sealed class TokenAuditService(VaultContext ctx)
             else withoutSummaries.Add(new NoteTokenRow(n.Title, n.Path, n.Type, TokensOf(n)));
         }
 
-        var tooLarge = notes.Where(n => IsActive(n) && TokensOf(n) >= TooLargeTokens)
+        // "Too large to read comfortably" is a decision about human content, so gate on the
+        // content-token estimate — a hub is not oversized just because its map block is big.
+        var tooLarge = notes.Where(n => IsActive(n) &&
+                TokenEstimator.EstimateBytes(ContentSizeOf(n)) >= TooLargeTokens)
             .OrderByDescending(TokensOf)
             .Select(n => new NoteTokenRow(n.Title, n.Path, n.Type, TokensOf(n)))
             .ToList();

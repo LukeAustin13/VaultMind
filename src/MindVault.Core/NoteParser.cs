@@ -29,6 +29,13 @@ public sealed class ParsedNote
     public required string BodyHash { get; init; }
     public long ModifiedTicks { get; init; }
     public long FileSize { get; init; }
+
+    /// <summary>
+    /// Char length of the note with generated regions (map + summary blocks) stripped — the
+    /// "human content" size. Size heuristics (large-note/summary-candidate/token-waste) use this
+    /// so a hub carrying a generated map block is not mistaken for a large unsummarized note.
+    /// </summary>
+    public long ContentSize { get; init; }
     public bool HasFrontmatter { get; init; }
     public string? ParseError { get; init; }
 }
@@ -75,7 +82,13 @@ public static partial class NoteParser
         var headings = ExtractHeadings(body, doc);
         var title = headings.FirstOrDefault(h => h.Level == 1)?.Text is { Length: > 0 } h1 ? h1 : stem;
 
-        var masked = MaskCodeBlocks(body, doc);
+        // Links and inline tags are extracted from the body with generated regions removed:
+        // wiki-links and #tags rendered inside a generated map/summary block are navigation
+        // aids, not authored connections. Counting them would let a note the map merely lists
+        // stop being an orphan, and re-parsing the block's own "Broken Links" / "Orphans"
+        // sections would fabricate links attributed to the hub — breaking rebuild idempotency.
+        var structuralBody = GeneratedBlocks.StripAll(body);
+        var masked = MaskCodeBlocks(structuralBody, Markdown.Parse(structuralBody));
         var links = new List<WikiLink>();
         var seenLinks = new HashSet<string>();
         foreach (Match m in WikiLinkPattern().Matches(masked))
@@ -125,6 +138,7 @@ public static partial class NoteParser
             BodyHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content))), // == ComputeBodyHash(rawContent)
             ModifiedTicks = modifiedTicks,
             FileSize = fileSize,
+            ContentSize = GeneratedBlocks.ContentSize(content),
             HasFrontmatter = hasFm,
             ParseError = parseError,
         };

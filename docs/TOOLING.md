@@ -33,7 +33,7 @@ create task --project "<p>" --title "<t>" [--allow-duplicate]
 create thought "<title>" [--content "<text>"]
 promote "<note-ref>" --to <decision|memory|task|risk|mistake> [--project "<p>"] [--allow-duplicate]
 organize [--project "<p>"] [--apply] [--json]
-map create|rebuild --project "<p>" [--json]
+map create|rebuild --project "<p>" [--json]   # generated map block on the project note (human text preserved)
 map list [--json]
 links suggest (--note "<ref>" | --project "<p>") [--limit n] [--json]
 links apply --note "<from>" --to "<target>" [--json]

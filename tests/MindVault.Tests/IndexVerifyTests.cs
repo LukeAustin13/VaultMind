@@ -79,7 +79,7 @@ public sealed class IndexVerifyTests
         var stdout = new StringWriter();
         var exit = CliRun(["index", "status", "--vault", tv.Root, "--json"], stdout);
         Assert.Equal(0, exit);
-        Assert.Contains("\"schemaVersion\":2", stdout.ToString());
+        Assert.Contains($"\"schemaVersion\":{IndexDatabase.CurrentSchemaVersion}", stdout.ToString());
 
         File.Delete(tv.Abs("03_Resources/SQLite Cheatsheet.md"));
         stdout = new StringWriter();

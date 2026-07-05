@@ -49,20 +49,19 @@ public sealed class OrganisationCompiler(VaultContext ctx)
 
         foreach (var proj in projects)
         {
-            var mapPath = MapService.MapPathFor(proj);
-            var mapExists = ctx.Db.FindByPath(mapPath) is not null ||
-                            File.Exists(PathGuard.ResolveNotePath(ctx.VaultRoot, mapPath));
+            // The map block lives on the hub now: rebuild if the hub already carries one, else create.
+            var hasBlock = HubHasMapBlock(proj);
             if (apply)
             {
-                var result = mapExists ? ctx.Maps.Rebuild(proj.Title) : ctx.Maps.Create(proj.Title);
+                var result = hasBlock ? ctx.Maps.Rebuild(proj.Title) : ctx.Maps.Create(proj.Title);
                 warnings.AddRange(result.Warnings);
                 artifacts.Add(new CompileArtifact("map", result.Path,
-                    mapExists ? "rebuilt" : "created", result.Message));
+                    hasBlock ? "rebuilt" : "created", result.Message));
             }
             else
             {
-                artifacts.Add(new CompileArtifact("map", mapPath,
-                    mapExists ? "would rebuild" : "would create",
+                artifacts.Add(new CompileArtifact("map", proj.Path,
+                    hasBlock ? "would rebuild" : "would create",
                     "generated block only; human sections preserved"));
             }
 
@@ -98,5 +97,18 @@ public sealed class OrganisationCompiler(VaultContext ctx)
             (score.Weaknesses.Count > 0 ? $"; weakest: {score.Weaknesses[0]}" : "; no weak categories")));
 
         return new CompileReport(!apply, project, score.OverallScore, artifacts, warnings);
+    }
+
+    private bool HubHasMapBlock(NoteSummary proj)
+    {
+        try
+        {
+            return File.ReadAllText(ctx.Resolver.AbsolutePathOf(proj))
+                .Contains(MapService.MarkerStart, StringComparison.Ordinal);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
     }
 }

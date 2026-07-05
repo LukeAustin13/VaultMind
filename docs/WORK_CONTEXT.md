@@ -25,7 +25,7 @@ Seeds (one input, one strategy):
 Deterministic boosts on top of the seeds: same project (+1), actionable status
 (active/accepted/open/blocked, +1), pinned (+3), positive feedback (+score). Negative
 feedback subtracts; anything at zero or below is dropped. Excluded always: archived,
-superseded, hidden, templates, maps, raw thoughts.
+superseded, hidden, templates, legacy map files, raw thoughts.
 
 ## Output
 

@@ -692,13 +692,18 @@ public static class CliRunner
                 }
                 else if (maps.Count == 0)
                 {
-                    stdout.WriteLine("No maps yet. Run: map create --project \"<name>\"");
+                    stdout.WriteLine("No projects yet. Run: map create --project \"<name>\"");
                 }
                 else
                 {
                     foreach (var m in maps)
-                        stdout.WriteLine($"  {m.Path}{(m.Project is null ? "" : $" (project: {m.Project})")}" +
-                                         (m.Updated is null ? "" : $" updated {m.Updated}"));
+                    {
+                        var state = m.IsLegacy ? "legacy 09_Maps file — migrate its text and remove it"
+                                  : m.HasMapBlock ? "map block present"
+                                  : "no map block — run map create";
+                        stdout.WriteLine($"  {m.Path} — {state}" +
+                                         (m.Updated is null ? "" : $" (updated {m.Updated})"));
+                    }
                 }
                 return 0;
             }
@@ -1764,8 +1769,8 @@ public static class CliRunner
           promote "<note-ref>" --to <decision|memory|task|risk|mistake> [--project "<p>"] [--allow-duplicate]
                                                    thought -> durable memory: frontmatter, placement, project link
           organize [--project "<p>"] [--apply]     propose placement moves with reasons (dry-run by default)
-          map create|rebuild --project "<p>"       generated project map in 09_Maps (human text preserved)
-          map list                                 list map notes
+          map create|rebuild --project "<p>"       generated map block on the project hub (human text preserved)
+          map list                                 list project hubs and map-block state (plus legacy files)
           links suggest (--note "<ref>" | --project "<p>") [--limit n]
                                                    reason-tagged link suggestions (never auto-applied)
           links apply --note "<from>" --to "<target>"

@@ -115,14 +115,19 @@ public sealed class RouteCardService(VaultContext ctx)
                 TokensOf(n.Path), null));
         }
 
-        var map = ctx.Db.GetAllNotes().FirstOrDefault(n =>
-            n.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(n.Project, proj.Title, StringComparison.OrdinalIgnoreCase));
-        if (map is not null)
-            Offer(map.Path, "project navigation hub — one read orients everything");
-        else
-            warnings.Add($"no map for {proj.Title} — `mindvault map create` would give agents a cheaper entry point");
-        Offer(proj.Path, "project hub — goal and non-negotiables");
+        // The map block lives on the hub now, so the hub is the single orientation read.
+        var hubHasMap = false;
+        try
+        {
+            hubHasMap = File.ReadAllText(PathGuard.ResolveNotePath(ctx.VaultRoot, proj.Path))
+                .Contains(MapService.MarkerStart, StringComparison.Ordinal);
+        }
+        catch (IOException) { /* presence is best-effort */ }
+        Offer(proj.Path, hubHasMap
+            ? "project hub — map block orients everything (goal, decisions, risks, health) in one read"
+            : "project hub — goal and non-negotiables");
+        if (!hubHasMap)
+            warnings.Add($"no map block on the {proj.Title} hub — `mindvault map create` would give agents a cheaper entry point");
 
         if (wc is not null)
         {

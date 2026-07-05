@@ -21,7 +21,7 @@ Each is `Math.Clamp(score, 0, 100)`. Formulas are the actual heuristics in
 | `folderPlacement` | `100 − misplaced*100/managed − needsReview*2` | "N of M managed notes are misplaced; K need review" |
 | `frontmatterQuality` | `100 − criticals*15 − warnings*3` | "C critical and W warning frontmatter finding(s) across N notes" |
 | `linkCoverage` | `100 − orphans*100/linkable` (linkable = managed non-thought) | "O of L linkable managed notes have no links in either direction" |
-| `mapCoverage` | `mapped*100/projects` (100 if no projects) | "M of P project(s) have a map in 09_Maps" |
+| `mapCoverage` | `mapped*100/projects` (100 if no projects) | "N of M project hub(s) carry a map block" |
 | `summaryCoverage` | `largeWithSummary*100/largeNotes` (100 if none large) | "S of N large note(s) carry a generated summary" |
 | `duplicateRisk` | `100 − dupClusters*20` (exact normalized-title clusters) | "K exact-title duplicate cluster(s) among managed notes" |
 | `orphanRisk` | `100 − orphans*8` | "O orphan(s); B broken link(s) from scoped notes" |
@@ -37,9 +37,9 @@ Notes on the trickier ones:
   they do not go stale.
 - **thoughtPromotionHygiene** — "stray" = a thought outside `00_Inbox/` or
   `06_Agent_Memory/Inbox/`; "old" = created >14 days ago.
-- **agentReadiness** checks: a map exists for every project, no broken links, the mistake
-  ledger is in use, a session log updated within `RecentSessionDays = 14`, and (project-scoped
-  only) the hub has a Goal section.
+- **agentReadiness** checks: every project's hub carries a map block, no broken links, the
+  mistake ledger is in use, a session log updated within `RecentSessionDays = 14`, and
+  (project-scoped only) the hub has a Goal section.
 
 ## Overall, strengths, weaknesses
 
@@ -71,5 +71,5 @@ actionable part. Token figures are estimates throughout.
 - Weights (e.g. `*15` per critical frontmatter finding, `*20` per duplicate cluster) are
   chosen heuristics, not calibrated constants.
 - Scores are point-in-time over the current index; run `compile`/scan first for freshness.
-- The map embeds only the overall score + weakest category, not the full breakdown — run the
-  command for that. See [MAPS.md](MAPS.md).
+- The map block on the hub embeds only the overall score + weakest category, not the full
+  breakdown — run the command for that. See [MAPS.md](MAPS.md).

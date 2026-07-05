@@ -66,7 +66,8 @@ public sealed class LinkIntelligenceService(VaultContext ctx)
         bool Excluded(NoteSummary c) =>
             c.Id == note.Id
             || c.Path.StartsWith("08_Templates/", StringComparison.OrdinalIgnoreCase)
-            || c.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase)
+            || c.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase) // legacy shield: un-migrated map files
+
             || c.Path.StartsWith(ctx.Config.DefaultArchiveFolder + "/", StringComparison.OrdinalIgnoreCase)
             || string.Equals(c.Status, "archived", StringComparison.OrdinalIgnoreCase)
             || string.Equals(c.Type, "thought", StringComparison.OrdinalIgnoreCase) // raw thoughts are not link targets

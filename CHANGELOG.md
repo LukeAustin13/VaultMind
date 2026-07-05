@@ -3,11 +3,64 @@
 All notable changes to MindVault. Format: keep-a-changelog-ish; versions are single-source
 in `src/MindVault.Core/MindVaultVersion.cs`.
 
-## 0.6.0 — 2026-07-05 (Organisation Intelligence: the brain routes attention)
+## 0.7.0 — 2026-07-05 (Map on the hub)
+
+The project map stops being a separate note and becomes a generated block on the project hub.
+One page per project: the old `09_Maps/<Project> Map.md` duplicated the hub's goal and
+non-negotiables (which went stale between rebuilds) and doubled every project into two
+hub-like nodes in Obsidian's graph. Merging the map into the hub makes the project note the
+single centre of its cluster and removes an entire class of staleness.
+
+### Changed
+- **Map is now a hub block.** `map create` / `mindvault_create_map` append the generated map
+  between the existing `<!-- mindvault-generated:start/end -->` markers at the end of the
+  project hub's body (and error if a block is already present); `map rebuild` /
+  `mindvault_rebuild_map` refresh it. Human text outside the markers is preserved verbatim,
+  exactly as before. `mindvault_get_project_map` returns just the block content from the hub.
+  Map and summary blocks (`<!-- mindvault-summary:start/end -->`) coexist on the hub via
+  distinct markers. Details: `docs/MAPS.md`.
+- **The block dropped its Current Goal / Non-Negotiables / Hub pointer.** That content already
+  lives on the same page above the markers; duplicating it caused stale copies. The block now
+  carries navigation and health only: Start Here (route/capsule commands), Key Decisions,
+  Active Tasks, Open Risks, Known Mistakes, Do Not Repeat, Constraints, Work Areas, Recent
+  Sessions, Recent Implementation Logs, Reviews, Related Prompts, Needs Review, Orphans,
+  Broken Links, Large Notes Missing Summaries, Organisation Score, Last Rebuilt.
+- **Rebuilds are idempotent.** When the regenerated block is unchanged (ignoring the Last
+  Rebuilt timestamp), nothing is written — no snapshot, no `updated` bump, no index churn.
+  Running `map rebuild` or `compile` on a settled project costs nothing.
+- **Size/token heuristics are generated-content-aware.** Large-note flags, summary
+  candidates, low-value detection and token-waste accounting now measure notes **excluding**
+  generated block content, so a hub carrying a map block is never falsely flagged as an
+  oversized note. The index schema version bumps for this, so existing indexes rebuild
+  automatically on first run.
+- **`09_Maps` retired.** It is no longer a required folder and `init` no longer creates it.
+  `mindvault_list_maps` now lists projects with/without a map block and flags any legacy
+  files. Legacy map files are excluded from orphan, low-value and audit reports, and are no
+  longer eligible graph/link/work-context endpoints.
+- **MCP surface unchanged at 55 tools.** All four map tools keep their names
+  (`mindvault_create_map`, `mindvault_rebuild_map`, `mindvault_get_project_map`,
+  `mindvault_list_maps`); CLI `map create|rebuild|list` unchanged in name.
+- Version 0.6.0 → 0.7.0.
+
+### Safety
+- **Generated-block writes refuse to splice on ambiguous markers.** `map create`,
+  `map rebuild`, `mindvault_get_project_map` and the summary-block splice classify marker
+  occurrences as None / Single / Ambiguous; when the marker strings are duplicated or malformed
+  they refuse to write (no snapshot, nothing changed) and warn to fix the note, instead of
+  guessing which occurrence is the generated block and risking human text.
+
+### Migration
+- `map create`, `map rebuild` and `compile` detect a legacy `09_Maps/<Project> Map.md`. If it
+  holds no human text outside its markers, it is archived (snapshot-first, never deleted) once
+  the block lands on the hub. If it does hold human text, MindVault warns and leaves the file
+  in place for you to move that text onto the hub yourself. No manual index step is needed —
+  the schema bump triggers an automatic rebuild.
+
+## 0.6.0 — 2026-07-05 (Organisation intelligence)
 
 Organisation becomes a token-compression and navigation layer: the vault now tells agents
 what to read first, what to skip, what it costs, and how well organised it is — with
-numbers and reasons. Audit: `docs/ORGANISATION_INTELLIGENCE_AUDIT.md`.
+numbers and reasons.
 
 ### Added
 - **Route cards** — `route` CLI + `mindvault_build_route_card`: read-first (≤5, with
@@ -63,12 +116,11 @@ numbers and reasons. Audit: `docs/ORGANISATION_INTELLIGENCE_AUDIT.md`.
   section (clearly labelled as such).
 - Version 0.5.0 → 0.6.0.
 
-## 0.5.0 — 2026-07-04 (Superpower Brain: a Memory OS for coding agents)
+## 0.5.0 — 2026-07-04 (Session-aware memory)
 
 MindVault becomes a session-aware brain: mode-shaped context capsules, work-context for
 the file in front of you, time-window recall, deterministic feedback signals, a content
 gate that refuses secrets, a first-class mistake ledger and a one-call ops rollup.
-Audit and honest results: `docs/SUPERPOWER_BRAIN_AUDIT.md`, `docs/SUPERPOWER_BRAIN_RESULTS.md`.
 
 ### Added
 - **Context capsules** — `capsule` CLI + `mindvault_build_context_capsule`: 7 modes
@@ -118,13 +170,13 @@ Audit and honest results: `docs/SUPERPOWER_BRAIN_AUDIT.md`, `docs/SUPERPOWER_BRA
   gap), auto-decaying feedback, vault chat/dashboard/cloud/plugin (as ever).
 - Version 0.4.0 → 0.5.0.
 
-## 0.4.0 — 2026-07-04 (Organisation & Linking: the vault organises itself)
+## 0.4.0 — 2026-07-04 (Organisation & linking)
 
 MindVault stops being retrieval-only: it now knows where notes belong, keeps thoughts
 distinct from durable memory, generates navigation maps, suggests meaningful links and
 audits its own hygiene — all dry-run/proposal-first and snapshot-backed.
 Details: `docs/ORGANISATION.md`, `docs/THOUGHTS_AND_MEMORY.md`, `docs/LINKING.md`,
-`docs/MAPS.md`; honest results in `docs/TOP_0_1_BRAIN_RESULTS.md`.
+`docs/MAPS.md`.
 
 ### Added
 - **Organisation engine** — `organize [--project] [--apply]` CLI +
@@ -174,11 +226,10 @@ Details: `docs/ORGANISATION.md`, `docs/THOUGHTS_AND_MEMORY.md`, `docs/LINKING.md
   reports the missing `09_Maps` folder.
 - Version 0.3.0 → 0.4.0.
 
-## 0.3.0 — 2026-07-04 (God-Tier Pass: project intelligence layer)
+## 0.3.0 — 2026-07-04 (Project intelligence layer)
 
 From "vault tools" to a project intelligence layer: repo→project identity, duplicate
 refusal in the write path, practical graph queries and a single health verdict.
-Review and honest results: `docs/GOD_TIER_REVIEW.md`, `docs/GOD_TIER_RESULTS.md`.
 
 ### Added
 - **Project aliases + repo binding** — project notes may declare `aliases:` and
@@ -205,7 +256,7 @@ Review and honest results: `docs/GOD_TIER_REVIEW.md`, `docs/GOD_TIER_RESULTS.md`
   archive: full validation + a preview of what would change, proven by test to write
   nothing (no file change, no move, no snapshot, no index touch).
 - **Docs** — QUICKSTART.md (5-minute second machine), VAULT_SCHEMA alias/repoNames
-  section, updated tool tables (23 tools), ERROR_CODES row, GOD_TIER_REVIEW/RESULTS.
+  section, updated tool tables (23 tools), ERROR_CODES row.
 - **Tests** — 278 total (was 249): detection tiers, alias context/creates, ambiguity,
   duplicate refusal + override, related-notes determinism, dry-run no-write proofs,
   health verdicts, MCP surface pinned at 23.
@@ -217,7 +268,7 @@ Review and honest results: `docs/GOD_TIER_REVIEW.md`, `docs/GOD_TIER_RESULTS.md`
 - Fewer junk snapshots: append/update-frontmatter snapshot after validation passes, not
   before (rollback semantics unchanged).
 
-## 0.2.0 — 2026-07-04 (Superpower Pass)
+## 0.2.0 — 2026-07-04 (Hardening & performance)
 
 Sharper, not bigger: production-hardening for the local single-owner deployment.
 
@@ -250,8 +301,8 @@ Sharper, not bigger: production-hardening for the local single-owner deployment.
 - **CLI ergonomics** — `--verbose` (timing to stderr), `--quiet` (mutation chatter off,
   results still print).
 - **Docs** — ERROR_CODES, SYNC_AND_CONCURRENCY, CONFIG_DIAGNOSTICS, PERFORMANCE,
-  PERFORMANCE_RESULTS, RETRIEVAL_EVALS, AGENT_EVALS, OP_WORKFLOW, RELEASE_CHECKLIST,
-  SUPERPOWER_PASS_PLAN, SUPERPOWER_FINAL_AUDIT; skills/README.
+  PERFORMANCE_RESULTS, RETRIEVAL_EVALS, AGENT_EVALS, WORKFLOW, RELEASE_CHECKLIST;
+  skills/README.
 - **Skills** — all 8 restructured with enforced sections (Trigger conditions / Required
   workflow / Do not / Efficiency rules / Safety rules), tested by `AgentEvalTests`.
 

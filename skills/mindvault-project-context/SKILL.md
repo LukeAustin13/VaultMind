@@ -41,15 +41,17 @@ Do NOT use when:
    `mindvault_build_route_card` (project + your goal) returns the 3–5 notes to read first
    with reasons and token estimates, plus an explicit do-not-read list; for strict
    tool-call discipline, `mindvault_build_read_plan` turns that into ordered steps with a
-   stop condition. `mindvault_get_project_map` is the single cheapest orientation read.
+   stop condition. `mindvault_get_project_map` returns the hub's map block — the single
+   cheapest orientation read.
 4. If detection found nothing, try `mindvault_search` with one to three likely name variants
    (optionally `type: "project"`). If still nothing: ask the user, or continue without vault
    context and mention that a project note can be created (`mindvault_create_project`) —
    ideally with `aliases:`/`repoNames:` frontmatter so detection works next time.
 5. Read at most **1–5** specific notes with `mindvault_read_note` — start from the pack's
    `recommendedNextReads`, which are ordered by importance. For a structural overview of an
-   unfamiliar project, one map note (`mindvault_list_maps`, then read the project's map) is
-   the cheapest orientation there is — prefer it over `mindvault_list_notes` sweeps.
+   unfamiliar project, the hub's map block (`mindvault_get_project_map`, or
+   `mindvault_list_maps` then read the hub) is the cheapest orientation there is — prefer it
+   over `mindvault_list_notes` sweeps.
 6. Take the pack's `warnings` seriously (stale tasks, contradictory decisions, duplicates) —
    mention relevant ones to the user rather than silently working around them.
 7. Continue the coding task using that context. Do not silently contradict an accepted

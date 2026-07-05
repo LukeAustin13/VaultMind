@@ -31,12 +31,15 @@ public sealed class SummaryService(VaultContext ctx)
     public static bool HasSummaryBlock(string rawOrBody) =>
         rawOrBody.Contains(MarkerStart, StringComparison.Ordinal);
 
-    /// <summary>The one-line `summary:` text from a note's generated block, or null.</summary>
+    /// <summary>The one-line `summary:` text from a note's generated block, or null. Returns null
+    /// on ambiguous markers rather than reading from a guessed span (this feeds read-only snippets,
+    /// so refusing is safe — the block just contributes no snippet).</summary>
     public static string? ExtractSummaryLine(string body)
     {
-        var start = body.IndexOf(MarkerStart, StringComparison.Ordinal);
-        var end = body.IndexOf(MarkerEnd, StringComparison.Ordinal);
-        if (start < 0 || end <= start) return null;
+        var located = GeneratedBlocks.Locate(body, MarkerStart, MarkerEnd);
+        if (located.Kind != GeneratedBlocks.BlockKind.Single) return null;
+        var start = located.Start;
+        var end = located.End;
         foreach (var line in body[(start + MarkerStart.Length)..end].Split('\n'))
         {
             var t = line.Trim();
@@ -53,7 +56,9 @@ public sealed class SummaryService(VaultContext ctx)
     {
         var note = ctx.Resolver.Resolve(noteRef);
         var warnings = new List<string>();
-        var proposal = Propose(note, out var newBody, out var changed);
+        var proposal = Propose(note, out var newBody, out var changed, out var skipWarning);
+        if (skipWarning is not null)
+            throw new MindVaultException(skipWarning);
         if (proposal is null)
             throw new MindVaultException(
                 $"'{note.Title}' is a {note.Type ?? "untyped"} note — summaries apply to managed notes, not maps or templates.");
@@ -93,7 +98,7 @@ public sealed class SummaryService(VaultContext ctx)
                           n.Status.Equals("superseded", StringComparison.OrdinalIgnoreCase)))
             .Where(n => names is null ||
                         (n.Project is { Length: > 0 } p && names.Contains(p, StringComparer.OrdinalIgnoreCase)))
-            .Where(n => states.TryGetValue(n.Path, out var s) && s.Size >= LargeBodyChars)
+            .Where(n => states.TryGetValue(n.Path, out var s) && s.ContentSize >= LargeBodyChars)
             .OrderBy(n => n.Path, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -109,7 +114,8 @@ public sealed class SummaryService(VaultContext ctx)
         var unchanged = 0;
         foreach (var note in candidates)
         {
-            var proposal = Propose(note, out var newBody, out var changed);
+            var proposal = Propose(note, out var newBody, out var changed, out var skipWarning);
+            if (skipWarning is not null) { warnings.Add(skipWarning); continue; }
             if (proposal is null) continue;
             proposals.Add(proposal);
             if (!changed) { unchanged++; continue; }
@@ -124,12 +130,28 @@ public sealed class SummaryService(VaultContext ctx)
         return new SummarizeReport(!apply, candidates.Count, proposals, applied, warnings);
     }
 
+    /// <summary>
+    /// Refusal text when a note's summary markers cannot be located unambiguously — a stray literal
+    /// marker in prose/a code fence, a duplicated block, or an end-before-start pairing. Naming the
+    /// counts and the fix keeps us from silently deleting or duplicating the human's text.
+    /// </summary>
+    internal static string AmbiguityMessage(string path, int startCount, int endCount) =>
+        $"Cannot safely locate the summary block in {path}: the marker strings appear more than once " +
+        $"or are malformed (found {startCount} '{MarkerStart}' and {endCount} '{MarkerEnd}'). Edit the note " +
+        "so each literal marker string appears exactly once around the real block — if you mention a marker " +
+        "in prose or a code fence, break it up so it is no longer the exact marker string. No changes were made.";
+
     /// <summary>Builds the proposal for one note. Null for maps/templates. `changed` is
-    /// false when the existing block matches the regenerated one (date line ignored).</summary>
-    private SummaryProposal? Propose(NoteSummary note, out string? newBody, out bool changed)
+    /// false when the existing block matches the regenerated one (date line ignored).
+    /// `skipWarning` is set (and the proposal is null) when the summary markers are ambiguous —
+    /// the note is skipped rather than spliced, so we never guess which text to overwrite.</summary>
+    private SummaryProposal? Propose(NoteSummary note, out string? newBody, out bool changed, out string? skipWarning)
     {
         newBody = null;
         changed = false;
+        skipWarning = null;
+        // legacy shields: un-migrated 09_Maps files / type: map notes are generated artifacts,
+        // never summarized (project hubs, by contrast, remain summarizable — see Propose above).
         if (string.Equals(note.Type, "map", StringComparison.OrdinalIgnoreCase) ||
             note.Path.StartsWith("08_Templates/", StringComparison.OrdinalIgnoreCase) ||
             note.Path.StartsWith("09_Maps/", StringComparison.OrdinalIgnoreCase))
@@ -139,16 +161,26 @@ public sealed class SummaryService(VaultContext ctx)
 
         var raw = File.ReadAllText(PathGuard.ResolveNotePath(ctx.VaultRoot, note.Path)).Replace("\r\n", "\n");
         FrontmatterCodec.TryExtract(raw, out _, out var body);
-        var hadBlock = HasSummaryBlock(body);
-        var bodyWithout = RemoveBlock(body);
+
+        var located = GeneratedBlocks.Locate(body, MarkerStart, MarkerEnd);
+        if (located.Kind == GeneratedBlocks.BlockKind.Ambiguous)
+        {
+            skipWarning = AmbiguityMessage(note.Path, located.StartCount, located.EndCount);
+            return null;
+        }
+        var hadBlock = located.Kind == GeneratedBlocks.BlockKind.Single;
+        // The summary is derived from human text only: strip BOTH generated regions (the map
+        // block on a project hub as well as any existing summary block). Splice still targets the
+        // full body so the map block is preserved in place.
+        var bodyWithout = GeneratedBlocks.StripAll(body);
         var (block, needsReview, summaryLine) = BuildBlock(note, bodyWithout);
 
-        if (hadBlock && StripVolatile(ExistingBlock(body)) == StripVolatile(block))
+        if (hadBlock && StripVolatile(ExistingBlock(body, located)) == StripVolatile(block))
         {
             return new SummaryProposal(note.Title, note.Path, hadBlock, needsReview, summaryLine);
         }
 
-        newBody = Splice(body, block);
+        newBody = Splice(body, block, located);
         changed = true;
         return new SummaryProposal(note.Title, note.Path, hadBlock, needsReview, summaryLine);
     }
@@ -242,31 +274,21 @@ public sealed class SummaryService(VaultContext ctx)
         return text[..(cut > 40 ? cut : SummaryMaxChars)].TrimEnd() + " …";
     }
 
-    private static string ExistingBlock(string body)
-    {
-        var start = body.IndexOf(MarkerStart, StringComparison.Ordinal);
-        var end = body.IndexOf(MarkerEnd, StringComparison.Ordinal);
-        return start >= 0 && end > start ? body[start..(end + MarkerEnd.Length)] : "";
-    }
-
-    private static string RemoveBlock(string body)
-    {
-        var start = body.IndexOf(MarkerStart, StringComparison.Ordinal);
-        var end = body.IndexOf(MarkerEnd, StringComparison.Ordinal);
-        if (start < 0 || end <= start) return body;
-        return body[..start] + body[(end + MarkerEnd.Length)..];
-    }
+    private static string ExistingBlock(string body, GeneratedBlocks.BlockLocation located) =>
+        located.Kind == GeneratedBlocks.BlockKind.Single
+            ? body[located.Start..(located.End + MarkerEnd.Length)]
+            : "";
 
     private static string StripVolatile(string block) =>
         string.Join("\n", block.Split('\n').Where(l => !l.TrimStart().StartsWith("updated:", StringComparison.Ordinal)));
 
-    /// <summary>Replaces the existing block, or inserts one after the H1 (or at the top).</summary>
-    private static string Splice(string body, string block)
+    /// <summary>Replaces the existing block, or inserts one after the H1 (or at the top). The
+    /// caller passes the already-classified location; on Single we splice the found span, on None
+    /// we insert after the H1 — byte-identical to the prior behaviour for well-formed notes.</summary>
+    private static string Splice(string body, string block, GeneratedBlocks.BlockLocation located)
     {
-        var start = body.IndexOf(MarkerStart, StringComparison.Ordinal);
-        var end = body.IndexOf(MarkerEnd, StringComparison.Ordinal);
-        if (start >= 0 && end > start)
-            return body[..start] + block + body[(end + MarkerEnd.Length)..];
+        if (located.Kind == GeneratedBlocks.BlockKind.Single)
+            return body[..located.Start] + block + body[(located.End + MarkerEnd.Length)..];
 
         var lines = body.Split('\n').ToList();
         var insertAt = 0;

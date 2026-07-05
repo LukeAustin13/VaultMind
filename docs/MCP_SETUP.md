@@ -148,9 +148,9 @@ stderr — check your MCP client's server logs.
 | `mindvault_capture_thought` | Park a raw, uncertain idea in the agent inbox (not durable memory) |
 | `mindvault_promote_note` | Thought → decision/memory/task/risk/mistake: validate, dedupe-gate, file correctly |
 | `mindvault_organize_vault` | Placement proposals with reasons; dry-run by default, `apply: true` to move |
-| `mindvault_create_map` | Generated project map-of-content note in `09_Maps` |
-| `mindvault_rebuild_map` | Refresh a map's generated block; human text outside markers preserved |
-| `mindvault_list_maps` | List map notes (the cheap project-overview read) |
+| `mindvault_create_map` | Add the generated map block to the project hub note (errors if one is present) |
+| `mindvault_rebuild_map` | Refresh the hub's map block; idempotent, human text outside markers preserved |
+| `mindvault_list_maps` | List projects with/without a map block; flags legacy `09_Maps` files |
 | `mindvault_suggest_links` | Reason-tagged link suggestions (never auto-applied) |
 | `mindvault_find_broken_links` | Wiki links whose target does not exist |
 | `mindvault_find_orphans` | Managed notes with no links in either direction |
@@ -169,7 +169,7 @@ stderr — check your MCP client's server logs.
 | `mindvault_resolve_mistake` | Mark a lesson done; it leaves capsules but stays in the ledger |
 | `mindvault_build_route_card` | Read-first ≤5 + do-not-read navigation brief with reasons + token estimates |
 | `mindvault_build_read_plan` | Strict ordered read plan (max 5) with stop conditions and a single fallback search |
-| `mindvault_get_project_map` | The project's map note in one payload — cheapest orientation read |
+| `mindvault_get_project_map` | The hub's map block content in one payload — cheapest orientation read |
 | `mindvault_find_low_value_notes` | Notes agents should skip by default, with reasons (guidance only) |
 | `mindvault_token_audit` | Token totals, largest notes, unsummarized large notes, capsule-vs-route cost |
 | `mindvault_organisation_score` | 0–100 across 11 explainable categories + weaknesses + token waste |

@@ -63,8 +63,8 @@ public sealed class ReadPlanService(VaultContext ctx)
 
     private static string ExpectedUse(string? type) => type?.ToLowerInvariant() switch
     {
-        "map" => "orient: decisions, risks and do-not-repeat rules in one read",
-        "project" => "know the goal and non-negotiables",
+        // The hub carries the map block now, so the project read is the orientation read.
+        "project" => "orient: goal, non-negotiables, decisions, risks and do-not-repeat rules in one read",
         "decision" => "know what is already decided before changing anything",
         "mistake" => "avoid repeating a recorded mistake",
         "memory" => "see where the last session stopped",

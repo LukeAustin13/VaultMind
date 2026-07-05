@@ -156,12 +156,13 @@ public sealed class OrganisationIntelligenceTests
         Assert.Equal(0, again.Applied); // unchanged block is never rewritten
     }
 
-    // 11. Map v2 rebuild: new sections appear, human text survives.
+    // 11. Map v2 rebuild: the map block lives on the hub, new sections appear, human text survives.
     [Fact]
     public void MapV2RebuildPreservesHumanTextAndAddsAgentSections()
     {
         using var tv = Vault();
         var result = tv.Ctx.Maps.Rebuild("Tokenproj");
+        Assert.Equal("01_Projects/Tokenproj.md", result.Path);
         var raw = File.ReadAllText(Path.Combine(tv.Root, result.Path));
         Assert.Contains("Humans wrote this paragraph and it must survive every rebuild.", raw);
         Assert.DoesNotContain("stale block — rebuild pending", raw);
@@ -170,6 +171,77 @@ public sealed class OrganisationIntelligenceTests
         Assert.Contains("## Organisation Score", raw);
         Assert.Contains("## Large Notes Missing Summaries", raw);
         Assert.Contains("Always run map rebuild instead of editing generated blocks", raw);
+        // Goal and non-negotiables are NOT duplicated into the block — they sit above it.
+        Assert.DoesNotContain("## Current Goal", raw);
+        Assert.DoesNotContain("## Non-Negotiables\n\n_(none recorded on the hub)_", raw);
+    }
+
+    // 11b. A second rebuild with no vault changes writes nothing and reports it.
+    [Fact]
+    public void MapRebuildIsIdempotentAndWritesNothingWhenUnchanged()
+    {
+        using var tv = Vault();
+        tv.Ctx.Maps.Rebuild("Tokenproj"); // first rebuild materialises the current block
+        var abs = Path.Combine(tv.Root, "01_Projects", "Tokenproj.md");
+        var bytesAfterFirst = File.ReadAllBytes(abs);
+
+        var again = tv.Ctx.Maps.Rebuild("Tokenproj");
+        Assert.Null(again.SnapshotPath); // no snapshot means no write
+        Assert.Contains("unchanged", again.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(bytesAfterFirst, File.ReadAllBytes(abs)); // file untouched
+    }
+
+    // 11c. A hub carrying BOTH blocks: each generator leaves the other's block alone.
+    [Fact]
+    public void MapAndSummaryBlocksCoexistWithoutDisturbingEachOther()
+    {
+        using var tv = Vault();
+        var abs = Path.Combine(tv.Root, "01_Projects", "Coexistproj.md");
+
+        // Map rebuild replaces the map block but never touches the summary block or human text.
+        tv.Ctx.Maps.Rebuild("Coexistproj");
+        var afterMap = File.ReadAllText(abs);
+        Assert.Contains(SummaryService.MarkerStart, afterMap);
+        Assert.Contains("Coexistence fixture — a hub carrying both", afterMap);
+        Assert.Contains("HUMAN-COEXIST-KEEP-ME", afterMap);
+        Assert.DoesNotContain("COEXIST-STALE-MAP-MARKER", afterMap); // stale map content replaced
+        Assert.Contains("## Start Here", afterMap);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(afterMap,
+            System.Text.RegularExpressions.Regex.Escape(MapService.MarkerStart)));
+
+        // Summary regeneration replaces the summary block but never touches the map block.
+        tv.Ctx.Summaries.ForNote("01_Projects/Coexistproj.md", apply: true);
+        var afterSummary = File.ReadAllText(abs);
+        Assert.Contains(MapService.MarkerStart, afterSummary);
+        Assert.Contains("## Start Here", afterSummary); // map block content intact
+        Assert.Contains("HUMAN-COEXIST-KEEP-ME", afterSummary);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(afterSummary,
+            System.Text.RegularExpressions.Regex.Escape(SummaryService.MarkerStart)));
+    }
+
+    // 11d. A hub whose raw size is large only because of its map block is not flagged as large.
+    [Fact]
+    public void HubIsNotFlaggedLargeWhenOnlyItsMapBlockIsBig()
+    {
+        using var tv = Vault();
+        var states = tv.Ctx.Db.GetFileStates();
+        var state = states["01_Projects/Bigmapproj.md"];
+        Assert.True(state.Size >= SummaryService.LargeBodyChars, "fixture must be large by raw bytes");
+        Assert.True(state.ContentSize < SummaryService.LargeBodyChars, "human content must be small");
+
+        // Not a summary candidate...
+        var summaries = tv.Ctx.Summaries.ForProject("Bigmapproj");
+        Assert.DoesNotContain(summaries.Proposals, p => p.Path == "01_Projects/Bigmapproj.md");
+
+        // ...not low-value "large with no summary"...
+        var low = tv.Ctx.LowValue.Find("Bigmapproj");
+        var row = low.Notes.FirstOrDefault(n => n.Path == "01_Projects/Bigmapproj.md");
+        if (row is not null)
+            Assert.DoesNotContain(row.Reasons, r => r.Contains("large", StringComparison.OrdinalIgnoreCase));
+
+        // ...and not counted as a large unsummarized note by the token audit.
+        var ta = tv.Ctx.TokenAudit.Run("Bigmapproj");
+        Assert.DoesNotContain(ta.NotesWithoutSummaries, n => n.Path == "01_Projects/Bigmapproj.md");
     }
 
     // 12. The typed graph explains decision↔task (and the rest of the family).
@@ -239,11 +311,15 @@ public sealed class OrganisationIntelligenceTests
     public void CompileDryRunWritesNothing()
     {
         using var tv = Vault();
+        var hubPath = Path.Combine(tv.Root, "01_Projects", "Tokenproj.md");
+        var before = File.ReadAllBytes(hubPath);
+
         var report = tv.Ctx.Compiler.Compile("Tokenproj", apply: false);
         Assert.True(report.DryRun);
         Assert.False(File.Exists(Path.Combine(tv.Root, ".mindvault", "link-graph.jsonl")));
-        var mapRaw = File.ReadAllText(Path.Combine(tv.Root, "09_Maps", "Tokenproj Map.md"));
-        Assert.Contains("stale block — rebuild pending", mapRaw); // map untouched
+        // The hub's stale map block is untouched — dry-run rebuilds nothing.
+        Assert.Equal(before, File.ReadAllBytes(hubPath));
+        Assert.Contains("stale block — rebuild pending", File.ReadAllText(hubPath));
         Assert.True(report.OverallScore is > 0 and <= 100);
     }
 
@@ -268,6 +344,128 @@ public sealed class OrganisationIntelligenceTests
         var text = tools.ReadNote("Tokenproj", section: "Goal");
         Assert.Contains("Ship the config pipeline v2", text);
         Assert.DoesNotContain("Config errors fail fast at startup", text); // other sections stay out
+    }
+
+    // ---------- ambiguous generated-block markers: refuse, never guess ----------
+
+    /// <summary>Writes a hub note whose frontmatter names a project of its own, scans it in, and
+    /// returns the project name plus the absolute hub path. Body is inserted verbatim under the H1.</summary>
+    private static (string Project, string Abs) WriteHub(TempVault tv, string project, string bodyUnderH1)
+    {
+        var rel = $"01_Projects/{project}.md";
+        var abs = tv.Abs(rel);
+        File.WriteAllText(abs,
+            $"---\ntype: project\nstatus: active\nproject: {project}\ntags:\n  - project\nlinks: []\n---\n\n# {project}\n\n{bodyUnderH1}\n");
+        tv.Ctx.Scanner.Scan();
+        return (project, abs);
+    }
+
+    private const string MapStart = "<!-- mindvault-generated:start -->";
+    private const string MapEnd = "<!-- mindvault-generated:end -->";
+    private const string SummaryStart = "<!-- mindvault-summary:start -->";
+    private const string SummaryEnd = "<!-- mindvault-summary:end -->";
+
+    // (a) A literal start-marker string in prose ABOVE the real block makes the block ambiguous.
+    // Rebuild must refuse: no write, no snapshot, and a warning naming the ambiguity — never a
+    // silent splice that deletes the human text between the prose mention and the real end marker.
+    [Fact]
+    public void MapRebuildRefusesWhenAStartMarkerIsAlsoMentionedInProse()
+    {
+        using var tv = Vault();
+        var (project, abs) = WriteHub(tv, "AmbigStartProj",
+            $"Docs note: the block opens with {MapStart} — do not touch it.\n\n" +
+            $"HUMAN-KEEP-ME-BETWEEN-MARKERS\n\n" +
+            $"{MapStart}\n## Start Here\n\nold generated content\n{MapEnd}");
+        var before = File.ReadAllBytes(abs);
+
+        var result = tv.Ctx.Maps.Rebuild(project);
+
+        Assert.Null(result.SnapshotPath); // no snapshot ⇒ no write
+        Assert.Equal(before, File.ReadAllBytes(abs)); // bytes untouched, human text intact
+        Assert.Contains(result.Warnings, w =>
+            w.Contains("appear more than once", StringComparison.OrdinalIgnoreCase) ||
+            w.Contains("malformed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Warnings, w => w.Contains("found 2", StringComparison.Ordinal)); // 2 start markers
+    }
+
+    // (b) A stray end-marker string ABOVE the real block makes end<start under naive first-occurrence
+    // logic. Rebuild must refuse — NOT append a duplicate block (the old bug appended forever).
+    [Fact]
+    public void MapRebuildRefusesAndAppendsNoDuplicateWhenAStrayEndMarkerAppears()
+    {
+        using var tv = Vault();
+        var (project, abs) = WriteHub(tv, "AmbigEndProj",
+            $"Docs note: the block closes with {MapEnd} at the end.\n\n" +
+            $"{MapStart}\n## Start Here\n\nold generated content\n{MapEnd}");
+        var before = File.ReadAllBytes(abs);
+
+        var result = tv.Ctx.Maps.Rebuild(project);
+
+        Assert.Null(result.SnapshotPath);
+        Assert.Equal(before, File.ReadAllBytes(abs)); // no duplicate block appended
+        // Exactly one start marker remains — nothing was added.
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(
+            File.ReadAllText(abs), System.Text.RegularExpressions.Regex.Escape(MapStart)));
+        Assert.Contains(result.Warnings, w => w.Contains("found 1", StringComparison.Ordinal)); // 1 start, 2 ends
+    }
+
+    // (c) get_project_map on an ambiguous hub returns a clear error, never wrong/partial content.
+    [Fact]
+    public void GetProjectMapReturnsAmbiguityErrorInsteadOfWrongContent()
+    {
+        using var tv = Vault();
+        var (project, _) = WriteHub(tv, "AmbigReadProj",
+            $"Prose mentions {MapStart} here.\n\n" +
+            $"{MapStart}\n## Start Here\n\nreal map content SECRET-CONTENT-MARKER\n{MapEnd}");
+        var tools = new MindVaultTools(tv.Ctx);
+
+        var json = tools.GetProjectMap(project);
+
+        Assert.Contains("\"error\"", json);
+        Assert.Contains("more than once", json);
+        Assert.DoesNotContain("SECRET-CONTENT-MARKER", json); // never leaks a guessed span
+    }
+
+    // (d) A note with DUPLICATED summary markers is skipped with a warning — never spliced (which
+    // would guess which of the two blocks to overwrite). The file is left byte-for-byte unchanged.
+    [Fact]
+    public void SummarySpliceSkipsNotesWithDuplicatedSummaryMarkers()
+    {
+        using var tv = Vault();
+        const string rel = "03_Resources/Architecture/Architecture - Ambiguous summary.md";
+        var abs = tv.Abs(rel);
+        Directory.CreateDirectory(Path.GetDirectoryName(abs)!);
+        var body =
+            $"---\ntype: architecture\nstatus: active\n---\n\n# Ambiguous summary\n\n" +
+            $"{SummaryStart}\nsummary: first block\n{SummaryEnd}\n\n" +
+            $"Human paragraph describing the architecture in enough words to matter.\n\n" +
+            $"{SummaryStart}\nsummary: second block\n{SummaryEnd}\n";
+        File.WriteAllText(abs, body);
+        tv.Ctx.Scanner.Scan();
+        var before = File.ReadAllBytes(abs);
+
+        var ex = Assert.Throws<MindVaultException>(() => tv.Ctx.Summaries.ForNote(rel, apply: true));
+
+        Assert.Contains("more than once", ex.Message);
+        Assert.Equal(before, File.ReadAllBytes(abs)); // never spliced
+    }
+
+    // (e) Create on a hub that only MENTIONS a marker in prose (no real block) must raise the
+    // ambiguity error, not the "already has a map block" false-positive the old Contains() gave.
+    [Fact]
+    public void MapCreateReportsAmbiguityNotAlreadyHasBlockOnAProseMentionOnly()
+    {
+        using var tv = Vault();
+        // Two prose mentions of the start marker, no matching end marker ⇒ Ambiguous, not Single.
+        var (project, abs) = WriteHub(tv, "ProseMentionProj",
+            $"First mention {MapStart} in a doc.\n\nSecond mention {MapStart} lower down.\n");
+        var before = File.ReadAllBytes(abs);
+
+        var ex = Assert.Throws<MindVaultException>(() => tv.Ctx.Maps.Create(project));
+
+        Assert.DoesNotContain("already has a map block", ex.Message);
+        Assert.Contains("more than once", ex.Message);
+        Assert.Equal(before, File.ReadAllBytes(abs)); // Create wrote nothing
     }
 
     private static string FindRepoRoot()

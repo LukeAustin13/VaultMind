@@ -1,6 +1,6 @@
 # Thoughts vs Memory
 
-A top-tier external brain distinguishes what it *suspects* from what it *knows*. MindVault
+A good external brain distinguishes what it *suspects* from what it *knows*. MindVault
 encodes that as a note lifecycle: raw thoughts live in an inbox and never pollute durable
 memory until they are deliberately promoted.
 

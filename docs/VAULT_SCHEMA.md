@@ -14,7 +14,6 @@
 06_Agent_Memory   agent memory notes (+ Inbox/, Meetings/, Mistakes/, Constraints/, Risks/)
 07_Reviews        reviews / retrospectives
 08_Templates      note templates (excluded from validation)
-09_Maps           generated map-of-content notes (see MAPS.md)
 99_Archive        archived notes (archive target; never hard-delete)
 .mindvault        operational data only — index.sqlite, snapshots/, backups/, logs/, state.json
 ```
@@ -34,8 +33,10 @@ research review meeting memory constraint risk mistake thought
 
 `thought` is the raw-capture type (uncertain, not yet durable — see
 [THOUGHTS_AND_MEMORY.md](THOUGHTS_AND_MEMORY.md)); `mistake` is the durable
-lesson type. Map notes carry `type: map`, which is deliberately *not* managed —
-maps are generated artifacts, so validation does not police their frontmatter.
+lesson type. There is no `map` note type as of v0.7.0 — the project map is a generated
+block on the project hub note ([MAPS.md](MAPS.md)), not a note of its own. Legacy
+`type: map` files from before the merge are tolerated: validation does not police them and
+they are excluded from orphan, low-value and audit reports.
 
 A note is "managed" when its `type` frontmatter is one of these. Managed notes must carry:
 
@@ -102,7 +103,9 @@ meta:
 | task | `01_Projects/Task - <Title>.md` | `# Task: <Title>` |
 | thought (CLI `create thought`) | `00_Inbox/<Title>.md` | `# Thought: <Title>` |
 | thought (`mindvault_capture_thought`) | `06_Agent_Memory/Inbox/<Title>.md` | `# Thought: <Title>` |
-| map (`map create`) | `09_Maps/<Project> Map.md` | `# <Project> Map` |
+
+`map create` does not create a note — it appends a generated block to the existing project
+hub note ([MAPS.md](MAPS.md)); the hub keeps its own `# <Project>` H1.
 
 `validate` warns (`outside-structure`) when a managed note of type project/task/decision/
 prompt/memory/review lives outside its expected folder (or `99_Archive`).

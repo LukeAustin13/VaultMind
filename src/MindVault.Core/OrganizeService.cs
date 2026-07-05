@@ -27,7 +27,7 @@ public sealed class OrganizeService(VaultContext ctx)
     public const int MaxProposals = 200;
 
     private static readonly string[] TypedFolders =
-        ["01_Projects", "04_Decisions", "05_Prompts", "06_Agent_Memory", "07_Reviews", "09_Maps"];
+        ["01_Projects", "04_Decisions", "05_Prompts", "06_Agent_Memory", "07_Reviews"];
 
     public OrganizeReport Plan(string? project = null) => Build(project, apply: false);
 
@@ -72,7 +72,7 @@ public sealed class OrganizeService(VaultContext ctx)
             }
 
             var type = note.Type?.Trim().ToLowerInvariant();
-            var placeable = NoteTypes.IsManaged(type) || type == "map";
+            var placeable = NoteTypes.IsManaged(type);
             if (!placeable)
             {
                 // Untyped/foreign notes are fine in the inbox and human folders; they only

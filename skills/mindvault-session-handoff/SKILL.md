@@ -39,7 +39,8 @@ and ensures the project's implementation-log note exists. Then:
 3. Skim the pack; read at most 1–5 of the `recommendedNextReads` with `mindvault_read_note`
    (scope with `section`/`maxChars`). For a goal-focused session,
    `mindvault_build_route_card` bounds the whole read budget and lists what NOT to read —
-   stop reading once its stop conditions are met, and prefer maps/summaries over raw notes.
+   stop reading once its stop conditions are met, and prefer the hub's map block and
+   summaries over raw notes.
 4. Surface any `warnings` that affect this session (stale tasks, contradicted decisions).
 5. If a tracked task covers this session's work, mark it `active`
    (`mindvault_update_frontmatter`, see `mindvault-task-sync`).

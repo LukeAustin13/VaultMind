@@ -2,8 +2,8 @@
 
 A read plan is the *itinerary* to the route card's *briefing*: a strict, ordered tool-call
 plan the agent follows literally and stops when the stop conditions are met. At most five
-reads, maps and hubs before raw notes, an explicit stop condition, do-not-read guidance, and
-a narrowed search as the only sanctioned fallback.
+reads, the project hub (with its map block) before raw notes, an explicit stop condition,
+do-not-read guidance, and a narrowed search as the only sanctioned fallback.
 
 ## Briefing vs itinerary
 
@@ -22,7 +22,7 @@ Each `ReadPlanStep` has:
 | `Action` | `read_note` for note steps; `get_work_context` for the optional final step. |
 | `Note` | The note path to read (null for the work-context step). |
 | `Reason` | Why this note is on the plan (carried from the route card). |
-| `ExpectedUse` | What to get out of it, phrased per note type — e.g. a map: "orient: decisions, risks and do-not-repeat rules in one read"; a decision: "know what is already decided before changing anything". |
+| `ExpectedUse` | What to get out of it, phrased per note type — e.g. a project hub: "orient: decisions, risks and do-not-repeat rules in one read"; a decision: "know what is already decided before changing anything". |
 
 When a `currentFile` is given and there is room under `maxReads`, the plan appends a
 `get_work_context` step ("confirm no decision, constraint or mistake governs this edit").

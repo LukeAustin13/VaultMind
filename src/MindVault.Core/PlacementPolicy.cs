@@ -34,7 +34,6 @@ public static class PlacementPolicy
         "risk" => "06_Agent_Memory/Risks",
         "review" => "07_Reviews",
         "thought" => "00_Inbox",
-        "map" => "09_Maps",
         _ => null,
     };
 
@@ -56,7 +55,6 @@ public static class PlacementPolicy
         "risk" => ["06_Agent_Memory/Risks"],
         "review" => ["07_Reviews"],
         "thought" => ["00_Inbox", "06_Agent_Memory/Inbox"],
-        "map" => ["09_Maps"],
         _ => [],
     };
 

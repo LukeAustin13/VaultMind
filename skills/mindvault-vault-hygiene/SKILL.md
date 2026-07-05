@@ -56,8 +56,8 @@ covers the quick check; this skill is the deep diagnosis.
      after explicit approval (snapshot-first, reversible)
    - large notes without summaries → show the `mindvault_generate_summaries` dry-run;
      apply only after approval (generated block only, human text untouched)
-   - stale maps / missing navigation → `mindvault_compile_brain` dry-run shows what a
-     full compile would rebuild; apply only after approval
+   - stale hub map blocks / missing navigation → `mindvault_compile_brain` dry-run shows
+     what a full compile would rebuild; apply only after approval
    - unpromoted inbox thoughts that are now confirmed → `mindvault_promote_note`
    - wrong/missing frontmatter or status → `mindvault_update_frontmatter` on the specific note
    - superseded-status-mismatch → `mindvault_supersede_decision` (or a status fix) on the pair
