@@ -27,6 +27,7 @@ public sealed class VaultContext : IDisposable
     public ProjectContextService Projects { get; }
     public BackupService Backup { get; }
     public ContextPackService Packs { get; }
+    public BriefService Briefs { get; }
     public DraftCheckService Drafts { get; }
     public DecisionService Decisions { get; }
     public SessionService Sessions { get; }
@@ -97,6 +98,7 @@ public sealed class VaultContext : IDisposable
         Projects = new ProjectContextService(this);
         Backup = new BackupService(this);
         Packs = new ContextPackService(this);
+        Briefs = new BriefService(this);
         Drafts = new DraftCheckService(this);
         Decisions = new DecisionService(this);
         Sessions = new SessionService(this);

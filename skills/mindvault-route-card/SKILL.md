@@ -6,14 +6,18 @@ description: Get a token-budgeted navigation brief before reading anything — t
 # MindVault: Route Card
 
 Ask the brain for a route before spending tokens on reads. The route card says what to
-read first, what can wait, what NOT to read, and what rules are already in force.
+read first, what can wait, what NOT to read, and what rules are already in force. It is a
+mid-session navigation tool — `mindvault_start_session` already returns a read-first list for
+the start of a session, so reach for a route card when the work moves to a new focus.
 
 ## Trigger conditions
 
 Use when:
-- Starting work in a repo with MindVault configured, before any vault search.
+- Mid-session, the work shifts to a new goal, bug or file and you want a fresh route before
+  any vault search.
 - A goal, bug or file is known and you want only the memory that governs it.
 - You caught yourself about to run a second or third `mindvault_search`.
+- Starting work in a repo with MindVault configured but no session brief in hand.
 
 Do NOT use for: recording anything (route cards are read-only), or when this session
 already has a fresh route for the same goal.
@@ -50,6 +54,8 @@ and the do-not-read list kept dead notes out of context.
   the same ground.
 - Summaries first, bodies second: a `summarySnippet` that answers the question ends the
   read chain right there.
+- If you fall back to the card's narrowed `mindvault_search`, pass `snippetChars: 0` for
+  refs-only hits, then scope the read with `mindvault_read_note`'s `section` / `maxChars`.
 
 ## Safety rules
 

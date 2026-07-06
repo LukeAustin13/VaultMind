@@ -6,6 +6,8 @@ public sealed partial class SearchService(VaultContext ctx)
 {
     public const int DefaultLimit = 10;
     public const int MaxLimit = 100;
+    public const int DefaultSnippetChars = 240;
+    public const int MaxSnippetChars = 1000;
 
     /// <summary>
     /// Ranked search. FTS5 supplies candidates with title-weighted bm25 (title x4);
@@ -18,7 +20,7 @@ public sealed partial class SearchService(VaultContext ctx)
     public List<SearchResult> Search(string query, string? type = null, string? project = null,
         string? tag = null, string? status = null, int limit = DefaultLimit,
         string? updatedAfter = null, string? updatedBefore = null,
-        bool includeArchived = false, bool explain = false)
+        bool includeArchived = false, bool explain = false, int snippetChars = DefaultSnippetChars)
     {
         if (string.IsNullOrWhiteSpace(query))
             throw new MindVaultException("Search query must not be empty.");
@@ -27,6 +29,7 @@ public sealed partial class SearchService(VaultContext ctx)
         ctx.Scanner.EnsureFresh();
 
         limit = Math.Clamp(limit, 1, MaxLimit);
+        snippetChars = Math.Clamp(snippetChars, 0, MaxSnippetChars);
         var candidateLimit = Math.Min(Math.Max(limit * 4, 20), 100);
         var archiveFolder = ctx.Config.DefaultArchiveFolder;
 
@@ -56,7 +59,10 @@ public sealed partial class SearchService(VaultContext ctx)
 
         // Snippets are generated only for the page that survives ranking — snippet() re-reads
         // and tokenizes note bodies, so running it for the whole candidate pool wastes work.
-        var snippets = ctx.Db.GetSnippets(match, scored.Select(s => s.Candidate.Id).ToList());
+        // snippetChars=0 skips them entirely for a refs-only, cheapest-possible result.
+        var snippets = snippetChars == 0
+            ? new Dictionary<long, string>()
+            : ctx.Db.GetSnippets(match, scored.Select(s => s.Candidate.Id).ToList());
 
         // Feedback annotates but never re-ranks: FTS relevance stays reproducible, the agent
         // just learns it is about to read a note the user marked hidden/noisy before paying
@@ -74,7 +80,7 @@ public sealed partial class SearchService(VaultContext ctx)
         return scored.Select(s => new SearchResult(
                 s.Candidate.Title, s.Candidate.Path, s.Candidate.Type, s.Candidate.Project,
                 s.Candidate.Status,
-                snippets.GetValueOrDefault(s.Candidate.Id, ""),
+                Truncate(snippets.GetValueOrDefault(s.Candidate.Id, ""), snippetChars),
                 Math.Round(s.Relevance, 4),
                 Section: FindMatchedSection(s.Candidate.Id, snippets.GetValueOrDefault(s.Candidate.Id, "")),
                 Scope: scope,
@@ -156,6 +162,13 @@ public sealed partial class SearchService(VaultContext ctx)
             statusIn: Clean(status) is { } s ? [s] : null,
             tag: Clean(tag),
             limit: Math.Clamp(limit, 1, 500));
+    }
+
+    /// <summary>Caps a snippet at <paramref name="maxChars"/>, ellipsising if trimmed. 0 yields empty.</summary>
+    private static string Truncate(string snippet, int maxChars)
+    {
+        if (maxChars <= 0 || snippet.Length == 0) return maxChars <= 0 ? "" : snippet;
+        return snippet.Length <= maxChars ? snippet : snippet[..maxChars].TrimEnd() + " …";
     }
 
     internal static List<string> Tokenize(string text) =>

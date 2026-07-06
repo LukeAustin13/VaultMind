@@ -65,6 +65,9 @@ tasks, no untracked durable follow-ups, no near-duplicate twins.
 - Check → create → two short appends; a task costs four calls, not ten.
 - Status flips are one `mindvault_update_frontmatter` call — no re-reading the whole note.
 - If the draft check blocks, stop and update the existing note; do not negotiate with it.
+- **Timing:** create a task mid-session with `mindvault_create_task` as above. If a durable
+  follow-up only surfaces right at the close, prefer batching it into `mindvault_end_session`'s
+  `tasks` array (see `mindvault-session-handoff`) — same duplicate gate, one fewer call.
 
 ## Safety rules
 

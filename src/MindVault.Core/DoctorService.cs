@@ -9,6 +9,7 @@ public static class McpEnv
     public const string AuthToken = "MINDVAULT_MCP_AUTH_TOKEN";
     public const string AuthTokenFile = "MINDVAULT_MCP_AUTH_TOKEN_FILE";
     public const string AllowAnonymous = "MINDVAULT_MCP_ALLOW_ANONYMOUS";
+    public const string ToolProfile = "MINDVAULT_TOOL_PROFILE";
 }
 
 /// <summary>MCP-related environment as booleans/plain values only — never the token itself.</summary>

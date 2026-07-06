@@ -13,8 +13,10 @@ mindvault capsule --project "MindVault" --format json
 mindvault capsule --project "MindVault" --max-chars 4000
 ```
 
-MCP: `mindvault_build_context_capsule` (project, mode, maxChars) — returns the structured
-capsule AND its rendered markdown.
+MCP: `mindvault_build_context_capsule` (project, mode, maxChars, format?, includeSources?).
+`format` is `"json"` or `"markdown"` and returns exactly one (as of 0.8.0 it no longer emits
+both — that was ~2× the payload). Source paths are returned only with `includeSources: true`
+(off by default; every included item already carries its own path).
 
 ## Modes
 
@@ -37,7 +39,8 @@ trimming removes items from the lowest-priority sections first.
 ## Rules
 
 - **Compact and source-backed.** Refs + reasons, never note bodies. Every included item
-  carries its path; `sourcePaths` lists everything used.
+  carries its own path; the aggregate `sourcePaths` list is returned only with
+  `includeSources: true`.
 - **Budgeted.** `--max-chars` (default 8000, clamped 1000–32000) is enforced by
   deterministic trimming, mode-priority order.
 - **Archived and superseded are excluded** — superseded decisions appear only as warnings.
@@ -47,10 +50,12 @@ trimming removes items from the lowest-priority sections first.
   `suggestedReads` ("pinned by feedback"). See [FEEDBACK_SIGNALS.md](FEEDBACK_SIGNALS.md).
 - **Deterministic.** Same vault + same feedback → byte-identical capsule.
 
-## Capsule vs context pack vs work-context
+## Capsule vs session brief vs work-context
 
-- `mindvault_start_session` / context pack — session-scoped briefing + log setup. Start here.
-- **Capsule** — mode-shaped, hard-budgeted, mistake-aware briefing; best when context is
-  tight or the work has a distinct mode.
+- `mindvault_start_session` — the budgeted session brief + log setup. **Start here**; for most
+  sessions it replaces calling the capsule and the route card separately at the start.
+- **Capsule** — mode-shaped, hard-budgeted, mistake-aware briefing; a **mid-session** refresh
+  when the work shifts into a distinct mode (debugging, review, planning…) or context is
+  tight.
 - Work-context ([WORK_CONTEXT.md](WORK_CONTEXT.md)) — memory around one specific file,
   query or note; use before risky edits.

@@ -8,7 +8,8 @@ namespace MindVault.Mcp;
 /// is explicitly enabled for local development.
 /// </summary>
 public sealed record McpOptions(
-    string Transport, string Host, int Port, string? AuthToken, bool AllowAnonymous, string? VaultPath)
+    string Transport, string Host, int Port, string? AuthToken, bool AllowAnonymous, string? VaultPath,
+    string ToolProfile = "full")
 {
     public const string TransportEnvVar = McpEnv.Transport;
     public const string HostEnvVar = McpEnv.Host;
@@ -16,12 +17,14 @@ public sealed record McpOptions(
     public const string AuthTokenEnvVar = McpEnv.AuthToken;
     public const string AuthTokenFileEnvVar = McpEnv.AuthTokenFile;
     public const string AllowAnonymousEnvVar = McpEnv.AllowAnonymous;
+    public const string ToolProfileEnvVar = McpEnv.ToolProfile;
 
     public static McpOptions Parse(string[] args, Func<string, string?>? getEnv = null)
     {
         getEnv ??= Environment.GetEnvironmentVariable;
 
-        string? transport = null, host = null, portText = null, token = null, tokenFile = null, vault = null;
+        string? transport = null, host = null, portText = null, token = null, tokenFile = null, vault = null,
+            profile = null;
         var noAuth = false;
         for (var i = 0; i < args.Length; i++)
         {
@@ -33,11 +36,13 @@ public sealed record McpOptions(
                 case "--auth-token": token = Next(args, ref i, "--auth-token"); break;
                 case "--auth-token-file": tokenFile = Next(args, ref i, "--auth-token-file"); break;
                 case "--vault": vault = Next(args, ref i, "--vault"); break;
+                case "--tool-profile": profile = Next(args, ref i, "--tool-profile"); break;
                 case "--no-auth": noAuth = true; break;
                 default:
                     throw new MindVaultException(
                         $"Unknown MCP server argument '{args[i]}'. " +
-                        "Supported: --transport stdio|http, --host, --port, --auth-token, --auth-token-file, --no-auth, --vault.");
+                        "Supported: --transport stdio|http, --host, --port, --auth-token, --auth-token-file, " +
+                        "--no-auth, --tool-profile full|core, --vault.");
             }
         }
 
@@ -67,6 +72,10 @@ public sealed record McpOptions(
             }
         }
 
+        profile = (profile ?? getEnv(ToolProfileEnvVar) ?? "full").Trim().ToLowerInvariant();
+        if (profile is not ("full" or "core"))
+            throw new MindVaultException($"Unknown tool profile '{profile}'. Use 'full' or 'core'.");
+
         var allowAnonymous = noAuth ||
             string.Equals(getEnv(AllowAnonymousEnvVar), "true", StringComparison.OrdinalIgnoreCase);
 
@@ -79,7 +88,7 @@ public sealed record McpOptions(
                 ErrorCodes.McpAuthRequired);
         }
 
-        return new McpOptions(transport, host, port, token, allowAnonymous, vault);
+        return new McpOptions(transport, host, port, token, allowAnonymous, vault, profile);
     }
 
     private static string Next(string[] args, ref int i, string name)

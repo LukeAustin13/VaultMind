@@ -1,5 +1,9 @@
+using System.ComponentModel;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using MindVault.Core;
+using MindVault.Mcp;
+using ModelContextProtocol.Server;
 
 namespace MindVault.Tests;
 
@@ -33,9 +37,74 @@ public sealed partial class HardeningGuardTests
         "mindvault_find_low_value_notes", "mindvault_compile_brain",
     };
 
+    /// <summary>The token-lean core profile: exactly 20 tools, all a subset of the full surface.</summary>
+    private static readonly HashSet<string> CoreTools = new(StringComparer.Ordinal)
+    {
+        "mindvault_detect_project", "mindvault_status", "mindvault_start_session",
+        "mindvault_checkpoint_session", "mindvault_end_session", "mindvault_recall",
+        "mindvault_search", "mindvault_read_note", "mindvault_get_work_context",
+        "mindvault_build_route_card", "mindvault_build_context_capsule", "mindvault_capture_thought",
+        "mindvault_check_draft", "mindvault_create_decision", "mindvault_create_task",
+        "mindvault_add_mistake", "mindvault_append_to_note", "mindvault_update_frontmatter",
+        "mindvault_link_notes", "mindvault_record_feedback",
+    };
+
     [Fact]
     public void BrainOpsToolCountConstantMatchesTheRealSurface() =>
         Assert.Equal(MindVaultVersion.McpToolCount, SafeTools.Count);
+
+    [Fact]
+    public void CoreToolProfileCountMatchesTheConstant() =>
+        Assert.Equal(MindVaultVersion.McpCoreToolCount, CoreTools.Count);
+
+    [Fact]
+    public void CoreToolProfileIsASubsetOfTheSafeSurface() =>
+        Assert.True(CoreTools.IsSubsetOf(SafeTools),
+            "every core tool must exist in the full safe surface");
+
+    [Fact]
+    public void CoreToolProfileMatchesTheRegistrationSource()
+    {
+        // The registration mechanism (ToolProfiles.CoreToolNames) is the single source of truth
+        // for what the core profile advertises; this test pins it against the documented set.
+        var registered = new HashSet<string>(ToolProfiles.CoreToolNames, StringComparer.Ordinal);
+        Assert.Equal(CoreTools, registered);
+        Assert.Equal(MindVaultVersion.McpCoreToolCount, registered.Count);
+    }
+
+    /// <summary>
+    /// The [Description] prose budget: tool + parameter descriptions must total <= 15,000 chars
+    /// so per-session tool schema cost cannot creep back. Measured off the real attributes.
+    /// </summary>
+    [Fact]
+    public void ToolAndParamDescriptionBudgetStaysUnder15000()
+    {
+        var total = 0;
+        var toolsOverLimit = new List<string>();
+        var paramsOverLimit = new List<string>();
+        foreach (var method in typeof(MindVaultTools).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var toolAttr = method.GetCustomAttribute<McpServerToolAttribute>();
+            if (toolAttr is null) continue;
+
+            var toolDesc = method.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "";
+            total += toolDesc.Length;
+            if (toolDesc.Length > 350) toolsOverLimit.Add($"{toolAttr.Name} ({toolDesc.Length})");
+
+            foreach (var p in method.GetParameters())
+            {
+                var pd = p.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "";
+                total += pd.Length;
+                if (pd.Length > 100) paramsOverLimit.Add($"{toolAttr.Name}.{p.Name} ({pd.Length})");
+            }
+        }
+
+        Assert.True(total <= 15_000, $"total description budget is {total} chars (limit 15000)");
+        Assert.True(toolsOverLimit.Count == 0,
+            "tool descriptions over 350 chars: " + string.Join(", ", toolsOverLimit));
+        Assert.True(paramsOverLimit.Count == 0,
+            "param descriptions over 100 chars: " + string.Join(", ", paramsOverLimit));
+    }
 
     [Fact]
     public void MutationsLeaveNoTempFilesBehind()

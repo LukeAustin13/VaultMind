@@ -92,10 +92,10 @@ public sealed class WriteLockTests
     public void SessionLifecycleWorksUnderTheLockRegime()
     {
         using var tv = new TempVault();
-        var start = tv.Ctx.Sessions.Start("Alpha", "lock regime check");
+        var start = tv.Ctx.Sessions.StartBrief("Alpha", "lock regime check");
         Assert.True(start.LogNoteCreated);
         tv.Ctx.Sessions.End("Alpha", "done", "green", null);
         Assert.False(File.Exists(LockPath(tv)));
-        Assert.Contains("- Tests: green", tv.ReadNote(start.LogNotePath));
+        Assert.Contains("- Tests: green", tv.ReadNote(start.LogNote));
     }
 }

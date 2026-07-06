@@ -69,7 +69,7 @@ foreach (var size in sizes)
         results.Add(("draft check", Med(() => ctx.Drafts.CheckDraft("task", "Genproj 01", "Refactor cache layer again"), 5)));
 
         // 7/8. session start + end (mutations: snapshot + write lock + append)
-        results.Add(("session start", Once(() => ctx.Sessions.Start("Genproj 01", "benchmark run"))));
+        results.Add(("session start", Once(() => ctx.Sessions.StartBrief("Genproj 01", "benchmark run"))));
         results.Add(("session end", Once(() => ctx.Sessions.End("Genproj 01", "benchmark handoff", "bench only", null))));
 
         // 9. validation

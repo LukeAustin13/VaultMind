@@ -50,9 +50,11 @@ it, and retrieval got one honest feedback signal richer.
 
 - One work-context call replaces three searches plus manual triage.
 - The reasons ARE the triage — do not re-read every result to decide relevance.
-- Scope follow-up reads: `mindvault_read_note` takes `section` and `maxChars` — pull the
-  one section you need, not the whole note. Stop reading once the governing decision,
-  constraint or mistake is known.
+- Scope every follow-up read: `mindvault_read_note`'s `section` pulls one heading's content
+  and `maxChars` caps the body — this is the single biggest per-read token saver, so default
+  to scoping instead of pulling whole notes. A `section` miss returns the note's heading list
+  so you can retry with the right one. Stop reading once the governing decision, constraint or
+  mistake is known.
 - For a goal broader than one file, `mindvault_build_route_card` /
   `mindvault_build_read_plan` bound the whole read budget up front.
 - Feedback is one call, recorded at the moment you know the verdict, not batched later.

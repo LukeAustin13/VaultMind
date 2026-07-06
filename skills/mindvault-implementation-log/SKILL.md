@@ -26,10 +26,18 @@ mindvault_end_session
   summary:   one line — what was accomplished
   tests:     e.g. "dotnet test green (180)" — or omit and it records "not recorded"
   followUps: remaining risks / next steps, or omit
+  decisions/mistakes/tasks: optional — batch any that surfaced at the close (see below)
 ```
 
 That writes a structured, dated handoff block to the project's implementation-log note
 (`06_Agent_Memory/Log - <Project>.md`) through the snapshot-first pipeline. Done.
+
+If real decisions, mistakes or durable tasks crystallised right at the close, batch them into
+this same call via its `decisions` / `mistakes` / `tasks` arrays instead of making a separate
+create call for each — each item runs the same duplicate and content gates as its standalone
+tool and reports its own outcome, and the handoff is written first regardless. Captures made
+mid-session still go through the standalone tools as they happen (see `mindvault-task-sync`,
+`mindvault-decision-capture`, `mindvault-mistake-ledger`).
 
 Fallback — no session was started:
 

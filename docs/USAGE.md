@@ -61,11 +61,17 @@ mindvault decision supersede --old "Decision - Use X" --new "Decision - Use Y"
 ## Sessions
 
 ```bash
-mindvault session start --project Alpha --task "harden search"   # context pack + log note
+mindvault session start --project Alpha --task "harden search"   # budgeted brief + log note (--max-chars caps it)
 mindvault session log --project Alpha --summary "index schema decided"   # sparingly
 mindvault session end --project Alpha --summary "weighted search shipped" \
     --tests "dotnet test green (180)" --followups "tune recency boost"
 ```
+
+Over MCP, `mindvault_start_session` returns a budgeted session brief (goal, non-negotiables,
+decisions in force, do-not-repeat rules, open/blocked tasks, risks, constraints, a
+token-priced read-first / do-not-read list, and what changed since the last handoff) rather
+than a full context pack, and `mindvault_end_session` can batch end-of-session decisions,
+mistakes and tasks into the one handoff call. See [AGENT_WORKFLOWS.md](AGENT_WORKFLOWS.md).
 
 ## Safety net
 

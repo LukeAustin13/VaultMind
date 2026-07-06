@@ -5,6 +5,11 @@ plan the agent follows literally and stops when the stop conditions are met. At 
 reads, the project hub (with its map block) before raw notes, an explicit stop condition,
 do-not-read guidance, and a narrowed search as the only sanctioned fallback.
 
+Like the route card it wraps, the read plan is a **mid-session** discipline tool as of 0.8.0
+— the session brief from `mindvault_start_session` already gives you a read-first list to
+start from. Reach for a read plan when a fresh goal mid-session needs a strict, ordered read
+path rather than a briefing.
+
 ## Briefing vs itinerary
 
 The route card ([ROUTE_CARDS.md](ROUTE_CARDS.md)) tells you *what is true and what to read*;
@@ -42,7 +47,8 @@ Follow the plan literally and stop when these hold — do not keep reading.
 `DoNotRead` is carried straight from the route card's low-value list (reasoned, and the hard
 set is already excluded from the steps). `FallbackSearch` is the route card's suggested
 narrowed `mindvault_search` call — the only sanctioned way to go beyond the plan, and only
-if the reads leave the goal unclear.
+if the reads leave the goal unclear. Run it with `snippetChars: 0` for refs-only hits when you
+just need the candidate paths, then scope the read with `read_note`'s `section` / `maxChars`.
 
 ## Bounds
 

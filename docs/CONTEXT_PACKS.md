@@ -13,8 +13,10 @@ mindvault context-pack "Alpha" --output json
 ```
 
 MCP: `mindvault_get_context_pack(project, task?, output?)` — JSON by default,
-`output: "markdown"` for the rendered briefing. `mindvault_start_session` returns the same
-pack plus session-log setup.
+`output: "markdown"` for the rendered briefing. This tool is unchanged; it still returns the
+full pack described here. Note that as of 0.8.0 `mindvault_start_session` returns a **budgeted
+session brief**, not this full pack (see [SESSION_WORKFLOW.md](SESSION_WORKFLOW.md)) — reach
+for `mindvault_get_context_pack` when you specifically want the full pack without a session.
 
 ## What's inside
 

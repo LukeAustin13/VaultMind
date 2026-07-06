@@ -29,30 +29,34 @@ Do NOT use when:
    confidence tier and returns candidates instead of guessing — if it returns candidates,
    pick with the user; do not assume.
 3. **If you are about to do real work, prefer `mindvault_start_session`** (project + a
-   one-line task description): it returns the full context pack AND sets up the session log
-   for your handoff later. For a quick look without a session, call
-   `mindvault_get_context_pack` (with the task description) or
-   `mindvault_get_project_context` (`detailLevel: "brief"` for a glance, `"deep"` when the
-   project is unfamiliar). For a mode-shaped briefing (debugging, review, planning…) under
-   a hard char budget, `mindvault_build_context_capsule` — it adds do-not-repeat rules and
-   superseded-decision warnings. Before editing a specific file, `mindvault_get_work_context`
-   with that file path finds the memory that touches it.
-3.5. **Before any broad search or note-list sweep, get a route:**
-   `mindvault_build_route_card` (project + your goal) returns the 3–5 notes to read first
-   with reasons and token estimates, plus an explicit do-not-read list; for strict
-   tool-call discipline, `mindvault_build_read_plan` turns that into ordered steps with a
-   stop condition. `mindvault_get_project_map` returns the hub's map block — the single
-   cheapest orientation read.
+   one-line task description): it returns a budgeted session brief — goal, non-negotiables,
+   decisions in force, do-not-repeat rules, open/blocked tasks, risks, constraints, a
+   read-first / do-not-read list, and what changed since your last handoff — AND sets up the
+   session log for your handoff later. That one call replaces reaching for
+   `mindvault_build_context_capsule` and `mindvault_build_route_card` separately at the start.
+   For a quick look without a session, call `mindvault_get_context_pack` (with the task
+   description) or `mindvault_get_project_context` (`detailLevel: "brief"` for a glance,
+   `"deep"` when the project is unfamiliar). Before editing a specific file,
+   `mindvault_get_work_context` with that file path finds the memory that touches it.
+3.5. **Mid-session, when the work moves to a new goal, file or angle:** get a fresh route
+   before a broad search. `mindvault_build_route_card` (project + your goal) returns the 3–5
+   notes to read first with reasons and token estimates, plus an explicit do-not-read list;
+   for strict tool-call discipline, `mindvault_build_read_plan` turns that into ordered steps
+   with a stop condition; for a mode-shaped briefing (debugging, review, planning…) under a
+   hard char budget, `mindvault_build_context_capsule` adds do-not-repeat rules and
+   superseded-decision warnings. `mindvault_get_project_map` returns the hub's map block —
+   the single cheapest orientation read.
 4. If detection found nothing, try `mindvault_search` with one to three likely name variants
    (optionally `type: "project"`). If still nothing: ask the user, or continue without vault
    context and mention that a project note can be created (`mindvault_create_project`) —
    ideally with `aliases:`/`repoNames:` frontmatter so detection works next time.
-5. Read at most **1–5** specific notes with `mindvault_read_note` — start from the pack's
-   `recommendedNextReads`, which are ordered by importance. For a structural overview of an
-   unfamiliar project, the hub's map block (`mindvault_get_project_map`, or
-   `mindvault_list_maps` then read the hub) is the cheapest orientation there is — prefer it
-   over `mindvault_list_notes` sweeps.
-6. Take the pack's `warnings` seriously (stale tasks, contradictory decisions, duplicates) —
+5. Read at most **1–5** specific notes with `mindvault_read_note` — start from the brief's
+   read-first list (or the pack's `recommendedNextReads` without a session), ordered by
+   importance, and skip the do-not-read list. For a structural overview of an unfamiliar
+   project, the hub's map block (`mindvault_get_project_map`, or `mindvault_list_maps` then
+   read the hub) is the cheapest orientation there is — prefer it over `mindvault_list_notes`
+   sweeps.
+6. Take the brief's warnings seriously (stale tasks, contradictory decisions, duplicates) —
    mention relevant ones to the user rather than silently working around them.
 7. Continue the coding task using that context. Do not silently contradict an accepted
    decision or constraint — if the task requires it, flag the conflict to the user first

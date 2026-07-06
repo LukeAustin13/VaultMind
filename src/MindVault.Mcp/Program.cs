@@ -39,14 +39,22 @@ LogStartup(options, context);
 
 return options.Transport == "http"
     ? await RunHttpAsync(options, context)
-    : await RunStdioAsync(context);
+    : await RunStdioAsync(options, context);
 
 static void LogStartup(McpOptions options, VaultContext context)
 {
     Console.Error.WriteLine(
         $"mindvault-mcp v{MindVaultVersion.Current} starting: transport={options.Transport}, " +
+        $"profile={options.ToolProfile}, " +
         $"vault exists={Directory.Exists(context.VaultRoot)}, writable={ProbeWritable(context.VaultRoot)}");
 }
+
+// The full profile reflects every [McpServerTool] on MindVaultTools; the core profile registers
+// only the curated subset. MindVaultTools stays the single source of truth for all declarations.
+static IMcpServerBuilder WithProfileTools(IMcpServerBuilder builder, McpOptions options) =>
+    options.ToolProfile == "core"
+        ? builder.WithTools(ToolProfiles.BuildCoreTools())
+        : builder.WithTools<MindVaultTools>();
 
 static bool ProbeWritable(string directory)
 {
@@ -63,7 +71,7 @@ static bool ProbeWritable(string directory)
     }
 }
 
-static async Task<int> RunStdioAsync(VaultContext context)
+static async Task<int> RunStdioAsync(McpOptions options, VaultContext context)
 {
     // stdout is reserved for the MCP protocol; all logging goes to stderr.
     var builder = Host.CreateApplicationBuilder();
@@ -72,10 +80,11 @@ static async Task<int> RunStdioAsync(VaultContext context)
 
     builder.Services.AddSingleton(context);
     builder.Services.AddSingleton(new McpRuntimeInfo("stdio"));
-    builder.Services
-        .AddMcpServer(o => o.ServerInfo = ServerInfo)
-        .WithStdioServerTransport()
-        .WithTools<MindVaultTools>();
+    WithProfileTools(
+        builder.Services
+            .AddMcpServer(o => o.ServerInfo = ServerInfo)
+            .WithStdioServerTransport(),
+        options);
 
     await builder.Build().RunAsync();
     return 0;
@@ -88,10 +97,11 @@ static async Task<int> RunHttpAsync(McpOptions options, VaultContext context)
 
     builder.Services.AddSingleton(context);
     builder.Services.AddSingleton(new McpRuntimeInfo("http"));
-    builder.Services
-        .AddMcpServer(o => o.ServerInfo = ServerInfo)
-        .WithHttpTransport()
-        .WithTools<MindVaultTools>();
+    WithProfileTools(
+        builder.Services
+            .AddMcpServer(o => o.ServerInfo = ServerInfo)
+            .WithHttpTransport(),
+        options);
 
     var app = builder.Build();
 

@@ -4,6 +4,29 @@ The token model behind route cards, read plans, audits and the organisation scor
 is deterministic and deliberately conservative — it over-counts slightly so budgets err
 toward reading *less*, never more.
 
+## Where the tokens go, and the levers
+
+An agent pays for tokens in two places: the **tool schema** it loads once per session before
+any work, and the **note content** it reads while working. The levers, cheapest first:
+
+1. **Fixed schema cost — the core tool profile.** The full 55-tool schema costs an agent
+   roughly 9–12k tokens of context every session, paid before the first useful call.
+   `MINDVAULT_TOOL_PROFILE=core` exposes only the 20 session-loop tools and cuts that to about
+   a third. This is the single largest per-session saving because it applies whether or not
+   the agent reads anything. See [MCP_SETUP.md](MCP_SETUP.md).
+2. **One-call session brief.** `mindvault_start_session` returns a budgeted brief (default
+   `maxChars` 6000) instead of a full context pack, and replaces calling
+   `build_context_capsule` + `build_route_card` separately at the start.
+3. **Mid-session navigation — route cards and read plans.** Before a broad search, a route
+   card ([ROUTE_CARDS.md](ROUTE_CARDS.md)) names the ≤5 notes to read first and the ones to
+   skip; a read plan ([READ_PLANS.md](READ_PLANS.md)) turns that into ordered steps with a
+   stop condition. These bound content reads once you are already working.
+4. **Scoped reads.** `mindvault_read_note`'s `section` / `maxChars` pull one heading or a
+   capped body instead of the full note — the biggest per-read saver (see below).
+5. **Slimmer payloads.** `mindvault_search`'s `snippetChars: 0` returns refs only;
+   `build_context_capsule`'s `format` returns json OR markdown, not both; capsule and route
+   `sourcePaths` are behind `includeSources` (off by default).
+
 ## The estimator
 
 `TokenEstimator` (in `TokenEstimator.cs`) is `ceil(chars / 4)`. It is not a model tokenizer:

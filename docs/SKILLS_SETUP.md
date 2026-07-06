@@ -129,8 +129,9 @@ the target project:
    Expect: status + validate, a severity-grouped report, recommendations only — no
    mutations unless you explicitly approve a specific fix.
 7. **session-handoff** — say "start a session on this project: hardening the parser."
-   Expect: one `mindvault_start_session` call and a short summary of the pack; at the end
-   of the session, one `mindvault_end_session` call with summary + tests.
+   Expect: one `mindvault_start_session` call and a short summary of the brief; at the end
+   of the session, one `mindvault_end_session` call with summary + tests (plus any
+   end-of-session decisions/mistakes/tasks batched into it).
 8. **architecture-memory** — after mapping a subsystem, say "record this architecture in
    MindVault." Expect: a check for an existing architecture note, then a compact append —
    bullets and arrows, not an essay.

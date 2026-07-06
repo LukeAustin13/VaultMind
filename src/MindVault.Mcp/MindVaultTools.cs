@@ -16,7 +16,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
     private const int MaxIssues = 100;
 
     [McpServerTool(Name = "mindvault_status", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Get MindVault status: vault name, whether the index exists, note count, whether a rescan is pending and last scan time.")]
+    [Description("Vault status: name, whether the index exists, note count, rescan-pending flag, last scan time.")]
     public string Status() => Safe(() =>
     {
         var state = ctx.State.Load();
@@ -35,31 +35,32 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
     });
 
     [McpServerTool(Name = "mindvault_search", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Ranked full-text search across vault notes (title-weighted, recency-boosted; archived notes excluded by default). Returns title, path, type, project, status, matched section and a snippet per hit. When a project filter finds nothing the search falls back vault-wide and marks results with scope 'global-fallback'.")]
+    [Description("Ranked full-text search (title-weighted, recency-boosted; archived excluded by default). Returns title, path, type, project, status, section and snippet per hit. A project filter finding nothing falls back vault-wide.")]
     public string Search(
-        [Description("Search query (FTS5 syntax; plain words work fine)")] string query,
-        [Description("Filter by note type, e.g. decision, task, project")] string? type = null,
-        [Description("Preferred project scope (falls back vault-wide if empty)")] string? project = null,
+        [Description("Search query (FTS5 syntax; plain words work)")] string query,
+        [Description("Filter by note type, e.g. decision, task")] string? type = null,
+        [Description("Preferred project scope (falls back vault-wide)")] string? project = null,
         [Description("Filter by tag")] string? tag = null,
         [Description("Filter by status, e.g. open, done")] string? status = null,
         [Description("Max results (default 10, max 100)")] int limit = 10,
-        [Description("Only notes updated on/after this date (yyyy-MM-dd)")] string? updatedAfter = null,
-        [Description("Only notes updated on/before this date (yyyy-MM-dd)")] string? updatedBefore = null,
-        [Description("Include archived notes (heavily deprioritised)")] bool includeArchived = false,
-        [Description("Include per-result ranking factors for retrieval debugging")] bool explain = false) =>
+        [Description("Only notes updated on/after (yyyy-MM-dd)")] string? updatedAfter = null,
+        [Description("Only notes updated on/before (yyyy-MM-dd)")] string? updatedBefore = null,
+        [Description("Include archived (heavily deprioritised)")] bool includeArchived = false,
+        [Description("Include ranking factors for debugging")] bool explain = false,
+        [Description("Snippet length (default 240; 0 = no snippets; max 1000)")] int snippetChars = SearchService.DefaultSnippetChars) =>
         Safe(() =>
         {
             var results = ctx.Search.Search(query, type, project, tag, status, limit,
-                updatedAfter, updatedBefore, includeArchived, explain);
+                updatedAfter, updatedBefore, includeArchived, explain, snippetChars);
             return new { count = results.Count, results };
         });
 
     [McpServerTool(Name = "mindvault_read_note", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Read one note by reference (relative path, title, filename, slug or [[wiki link]]). Ambiguous references return the candidate list instead of guessing. Token-saving options: pass 'section' to get just one heading's content, or 'maxChars' to cap the body — prefer these over full reads.")]
+    [Description("Read one note by reference. Ambiguous refs return candidates, not a guess. To save tokens pass 'section' for one heading or 'maxChars' to cap the body — prefer over full reads.")]
     public string ReadNote(
-        [Description("Note reference: path, title, filename or [[wiki link]]")] string noteRef,
-        [Description("Return only this heading's content (e.g. 'Goal') instead of the whole body")] string? section = null,
-        [Description("Cap the returned body at this many chars (0 = default cap)")] int maxChars = 0) =>
+        [Description("Note ref: path, title, filename or [[wiki link]]")] string noteRef,
+        [Description("Return only this heading's content")] string? section = null,
+        [Description("Cap the body at N chars (0 = default cap)")] int maxChars = 0) =>
         Safe(() =>
         {
             var note = ctx.Resolver.Resolve(noteRef);
@@ -95,7 +96,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_list_notes", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("List indexed notes, optionally filtered by type, project, status or tag. Sorted by most recently updated.")]
+    [Description("List indexed notes, optionally filtered by type/project/status/tag, newest updated first.")]
     public string ListNotes(
         [Description("Filter by note type")] string? type = null,
         [Description("Filter by project name")] string? project = null,
@@ -113,37 +114,37 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_create_project", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Create a new project note in 01_Projects with valid frontmatter and the standard section skeleton. Refuses names that already resolve to an existing project (including via alias) unless allowDuplicate is true.")]
+    [Description("Create a new project note with valid frontmatter and the standard section skeleton. Refuses a name that already resolves to a project (including via alias) unless allowDuplicate.")]
     public string CreateProject(
         [Description("Project name (also becomes the file name)")] string name,
-        [Description("Create even if a very similar project exists (default false)")] bool allowDuplicate = false) =>
+        [Description("Create even if a similar project exists")] bool allowDuplicate = false) =>
         Safe(() => Created(ctx.Writer.CreateProject(name, allowDuplicate)));
 
     [McpServerTool(Name = "mindvault_create_decision", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Create a decision note in 04_Decisions, linked to an existing project (aliases resolve). Fails if the project note does not exist; refuses near-duplicate titles unless allowDuplicate is true — update or supersede the existing decision instead.")]
+    [Description("Create a decision note linked to an existing project (aliases resolve). Fails if the project is missing; refuses near-duplicate titles unless allowDuplicate — update or supersede the existing decision instead.")]
     public string CreateDecision(
-        [Description("Existing project name (alias or repo name also works)")] string project,
+        [Description("Existing project (alias/repo name ok)")] string project,
         [Description("Decision title")] string title,
-        [Description("Create even if a very similar decision exists (default false)")] bool allowDuplicate = false) =>
+        [Description("Create even if a similar decision exists")] bool allowDuplicate = false) =>
         Safe(() => Created(ctx.Writer.CreateDecision(project, title, allowDuplicate)));
 
     [McpServerTool(Name = "mindvault_create_task", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Create a task note linked to an existing project (aliases resolve). Fails if the project note does not exist; refuses near-duplicate titles unless allowDuplicate is true — update the existing task instead.")]
+    [Description("Create a task note linked to an existing project (aliases resolve). Fails if the project is missing; refuses near-duplicate titles unless allowDuplicate — update the existing task instead.")]
     public string CreateTask(
-        [Description("Existing project name (alias or repo name also works)")] string project,
+        [Description("Existing project (alias/repo name ok)")] string project,
         [Description("Task title")] string title,
-        [Description("Create even if a very similar task exists (default false)")] bool allowDuplicate = false) =>
+        [Description("Create even if a similar task exists")] bool allowDuplicate = false) =>
         Safe(() => Created(ctx.Writer.CreateTask(project, title, allowDuplicate)));
 
     [McpServerTool(Name = "mindvault_append_to_note", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Append content under an existing heading of a note. Snapshots the note first. Errors if the heading is missing unless createSection is true. Pass dryRun to preview without writing.")]
+    [Description("Append content under a note's existing heading (snapshots first). Errors if the heading is missing unless createSection. dryRun previews.")]
     public string AppendToNote(
-        [Description("Note reference: path, title, filename or [[wiki link]]")] string noteRef,
-        [Description("Heading text to append under (without # markers)")] string section,
+        [Description("Note ref: path, title, filename or [[wiki link]]")] string noteRef,
+        [Description("Heading to append under (no # markers)")] string section,
         [Description("Markdown content to append")] string content,
-        [Description("Create the section at the end of the note when missing")] bool createSection = false,
-        [Description("Preview only — report what would happen, change nothing")] bool dryRun = false,
-        [Description("Store even if the content gate flags secrets (default false)")] bool allowRiskyContent = false) =>
+        [Description("Add the section at the note's end if missing")] bool createSection = false,
+        [Description("Preview only — change nothing")] bool dryRun = false,
+        [Description("Store even if the secret gate flags it")] bool allowRiskyContent = false) =>
         Safe(() =>
         {
             var result = ctx.Writer.AppendToSection(noteRef, section, content, createSection, dryRun, allowRiskyContent);
@@ -151,13 +152,13 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_update_frontmatter", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Set one flat frontmatter key on a note (e.g. status). Nested YAML values are rejected. For tags/links pass a comma-separated list. Snapshots first. Pass dryRun to preview the old -> new value without writing.")]
+    [Description("Set one flat frontmatter key (e.g. status). Nested YAML rejected; for tags/links pass a comma-separated list. Snapshots first. dryRun previews old -> new.")]
     public string UpdateFrontmatter(
         [Description("Note reference")] string noteRef,
         [Description("Frontmatter key, e.g. status")] string key,
-        [Description("New scalar value (comma-separated list for tags/links)")] string value,
-        [Description("Preview only — report what would happen, change nothing")] bool dryRun = false,
-        [Description("Store even if the content gate flags secrets (default false)")] bool allowRiskyContent = false) =>
+        [Description("New value (comma-separated for tags/links)")] string value,
+        [Description("Preview only — change nothing")] bool dryRun = false,
+        [Description("Store even if the secret gate flags it")] bool allowRiskyContent = false) =>
         Safe(() =>
         {
             var result = ctx.Writer.UpdateFrontmatter(noteRef, key, value, dryRun, allowRiskyContent);
@@ -165,7 +166,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_link_notes", Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Add a [[wiki link]] to the source note's frontmatter links list pointing at the target note. Snapshots first; no-op if already linked.")]
+    [Description("Add a [[wiki link]] to the source note's frontmatter links, pointing at the target. Snapshots first; no-op if already linked.")]
     public string LinkNotes(
         [Description("Source note reference")] string fromRef,
         [Description("Target note reference")] string toRef) =>
@@ -176,10 +177,10 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_archive_note", Destructive = true, Idempotent = false, OpenWorld = false)]
-    [Description("Archive a note instead of deleting: snapshot, set status archived, move to 99_Archive, reindex. There is no delete tool. Pass dryRun to preview the move without changing anything.")]
+    [Description("Archive a note instead of deleting: snapshot, set status archived, move to the archive folder, reindex. There is no delete tool. dryRun previews the move.")]
     public string ArchiveNote(
         [Description("Note reference")] string noteRef,
-        [Description("Preview only — report what would happen, change nothing")] bool dryRun = false) =>
+        [Description("Preview only — change nothing")] bool dryRun = false) =>
         Safe(() =>
         {
             var result = ctx.Writer.Archive(noteRef, dryRun);
@@ -187,40 +188,45 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_capture_thought", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Capture a raw, uncertain idea as a thought note in 06_Agent_Memory/Inbox — NOT durable memory. Use this instead of creating decisions/memories you are not sure about; promote it later with mindvault_promote_note once confirmed. This IS the inbox-add tool; list drafts with mindvault_list_inbox, reject one with mindvault_archive_note.")]
+    [Description("Capture a raw, uncertain idea as a thought note in the agent inbox — NOT durable memory. Use instead of creating decisions/memories you are unsure about; promote later with promote_note. List with list_inbox.")]
     public string CaptureThought(
         [Description("Short thought title")] string title,
         [Description("Optional body text for the Thought section")] string? content = null,
-        [Description("Project to tag the thought with (alias/repo name works)")] string? project = null,
-        [Description("Store even if the content gate flags secrets (default false)")] bool allowRiskyContent = false) =>
+        [Description("Project to tag with (alias/repo ok)")] string? project = null,
+        [Description("Store even if the secret gate flags it")] bool allowRiskyContent = false) =>
         Safe(() => Created(ctx.Writer.CaptureThought(title, content, agentInbox: true, project, allowRiskyContent)));
 
     [McpServerTool(Name = "mindvault_build_context_capsule", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Build a compact, char-budgeted context capsule for a project: goal, non-negotiables, decisions in force, open/blocked tasks, risks, constraints, known mistakes with do-not-repeat rules, superseded-decision warnings, open questions, suggested reads and source paths. Modes reshape priority: coding, debugging, review, planning, handoff, release, architecture. Feedback-aware (hidden excluded, pinned boosted). If the project name is ambiguous, candidates come back instead of a guess.")]
+    [Description("The full memory to hold before working: decisions, tasks, risks, constraints, do-not-repeat rules — the facts (build_route_card points at notes). mode reshapes priority (coding|debugging|review|planning|handoff|release|architecture); budgeted.")]
     public string BuildContextCapsule(
-        [Description("Project name (alias or repo name also works)")] string project,
-        [Description("coding | debugging | review | planning | handoff | release | architecture")] string mode = "coding",
-        [Description("Character budget for the capsule (default 8000)")] int maxChars = CapsuleService.DefaultBudget) =>
+        [Description("Project (alias/repo name ok)")] string project,
+        [Description("Mode (see tool description); default coding")] string mode = "coding",
+        [Description("Char budget for the capsule (default 8000)")] int maxChars = CapsuleService.DefaultBudget,
+        [Description("'json' (default) or 'markdown'")] string format = "json",
+        [Description("Include the flat sourcePaths list")] bool includeSources = false) =>
         Safe(() =>
         {
             var outcome = ctx.Capsules.Build(project, mode, maxChars);
-            return outcome.Capsule is null
-                ? (object)new { ambiguous = true, candidates = outcome.Candidates }
-                : new { ambiguous = false, capsule = outcome.Capsule, markdown = CapsuleService.ToMarkdown(outcome.Capsule) };
+            if (outcome.Capsule is null)
+                return (object)new { ambiguous = true, candidates = outcome.Candidates };
+            var capsule = includeSources ? outcome.Capsule : outcome.Capsule with { SourcePaths = [] };
+            return string.Equals(format, "markdown", StringComparison.OrdinalIgnoreCase)
+                ? new { ambiguous = false, markdown = CapsuleService.ToMarkdown(capsule) }
+                : (object)new { ambiguous = false, capsule };
         });
 
     [McpServerTool(Name = "mindvault_get_work_context", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Memory related to what you are working on RIGHT NOW. Pass exactly one of: currentFile (source path — token-matched), query (free text), or note (graph expansion). Returns decisions/tasks/risks/mistakes/reviews/logs each with the reasons it matched, plus suggested reads. Use before risky edits. Feedback-aware; archived/superseded/hidden never appear.")]
+    [Description("Memory tied to what you are touching RIGHT NOW — pass exactly one of currentFile, query or note. Returns decisions/tasks/risks/mistakes/logs each with why it matched, plus reads. Use before risky edits.")]
     public string GetWorkContext(
-        [Description("Project name (alias or repo name also works)")] string project,
-        [Description("Source file path you are editing, e.g. src/App/WriteService.cs")] string? currentFile = null,
+        [Description("Project (alias/repo name ok)")] string project,
+        [Description("Source file you are editing (repo-relative path)")] string? currentFile = null,
         [Description("Free-text query describing the work")] string? query = null,
         [Description("Note reference to expand from")] string? note = null,
         [Description("Max results per group (default 12)")] int limit = 12) =>
         Safe(() => new { workContext = ctx.WorkContext.Get(project, currentFile, query, note, limit) });
 
     [McpServerTool(Name = "mindvault_recall", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("What changed in a time window: decisions/tasks/risks/mistakes/session logs/reviews/notes created or updated since a date ('7 days' or yyyy-MM-dd), or on this day in earlier years. Frontmatter dates first, file mtime fallback; archived excluded (counted in warnings). Use when continuing work after a gap.")]
+    [Description("What changed in a window: decisions/tasks/risks/mistakes/logs/reviews/notes created or updated since a date ('7 days', yyyy-MM-dd, or 'last-handoff'), or on this day in earlier years. Frontmatter dates, mtime fallback.")]
     public string Recall(
         [Description("Project name (optional — omit for vault-wide)")] string? project = null,
         [Description("Window: '7 days' or a yyyy-MM-dd date (default 7 days)")] string? since = null,
@@ -228,11 +234,11 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         Safe(() => new { recall = ctx.RecallSvc.Recall(project, since, onThisDay) });
 
     [McpServerTool(Name = "mindvault_record_feedback", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Record deterministic retrieval feedback for a note: pinned (always surface), hidden (never surface), useful, noisy, outdated, wrong, or clear (reset). Stored in a sidecar (.mindvault/feedback.jsonl) — vault Markdown is untouched. Feedback shapes capsules, work-context, related notes and link suggestions.")]
+    [Description("Record retrieval feedback for a note: pinned (always surface), hidden (never), useful, noisy, outdated, wrong, or clear. Stored in a sidecar — Markdown untouched. Shapes capsules, work-context and link suggestions.")]
     public string RecordFeedback(
         [Description("Note reference")] string note,
         [Description("pinned | hidden | useful | noisy | outdated | wrong | clear")] string signal,
-        [Description("Short reason (recommended — future you will ask why)")] string? reason = null) =>
+        [Description("Short reason (recommended)")] string? reason = null) =>
         Safe(() =>
         {
             var entry = ctx.Feedback.Record(note, signal, reason);
@@ -240,17 +246,17 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_brain_ops", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("One-call brain state: health verdict, note/managed counts, index age, broken links, orphans, duplicate suspects, alias collisions, archived ratio, inbox drafts, open risks, active mistakes, feedback volume, latest session and recommended fixes. Counts only — no vault content.")]
+    [Description("One-call brain state: health verdict, counts, index age, broken links, orphans, duplicate suspects, alias collisions, inbox drafts, open risks, active mistakes, latest session, fixes. Counts only — no vault content.")]
     public string BrainOps() =>
         Safe(() => new { ops = ctx.Ops.Run() });
 
     [McpServerTool(Name = "mindvault_checkpoint_session", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Append a one-line mid-session checkpoint to the project's session log. Use sparingly — the handoff at mindvault_end_session is the entry that matters. Supports dryRun.")]
+    [Description("Append a one-line mid-session checkpoint to the session log. Use sparingly — the handoff at end_session is the entry that matters. Supports dryRun.")]
     public string CheckpointSession(
-        [Description("Project name (alias or repo name also works)")] string project,
+        [Description("Project (alias/repo name ok)")] string project,
         [Description("One-line checkpoint summary")] string summary,
         [Description("Preview only — change nothing")] bool dryRun = false,
-        [Description("Store even if the content gate flags secrets (default false)")] bool allowRiskyContent = false) =>
+        [Description("Store even if the secret gate flags it")] bool allowRiskyContent = false) =>
         Safe(() =>
         {
             var r = ctx.Sessions.Log(project, summary, dryRun, allowRiskyContent);
@@ -258,9 +264,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_recent_sessions", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("The latest handoff (###) and checkpoint (####) entries from the project's session log, newest first — read this when resuming work to see where the last session stopped.")]
+    [Description("Latest handoff (###) and checkpoint (####) entries from the project's session log, newest first — read when resuming to see where the last session stopped.")]
     public string RecentSessions(
-        [Description("Project name (alias or repo name also works)")] string project,
+        [Description("Project (alias/repo name ok)")] string project,
         [Description("Max entries (default 5)")] int limit = 5) =>
         Safe(() =>
         {
@@ -269,9 +275,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_list_inbox", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Unpromoted thought drafts in 00_Inbox and 06_Agent_Memory/Inbox, newest first. Promote a confirmed one with mindvault_promote_note; reject a dead one with mindvault_archive_note.")]
+    [Description("Unpromoted thought drafts in the inboxes, newest first. Promote a confirmed one with promote_note; reject a dead one with archive_note.")]
     public string ListInbox(
-        [Description("Limit to one project (alias or repo name also works)")] string? project = null) =>
+        [Description("Limit to one project (alias/repo ok)")] string? project = null) =>
         Safe(() =>
         {
             var rows = BrainQueries.Inbox(ctx, project);
@@ -283,20 +289,20 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_add_mistake", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Record a durable lesson in the mistake ledger (06_Agent_Memory/Mistakes): what to never repeat, with the lesson and a prevention rule. Refuses near-duplicates; capsules surface active mistakes as do-not-repeat rules. Record one when a mistake has repeat-prevention value — not for routine bugs.")]
+    [Description("Record a durable lesson in the mistake ledger: what to never repeat, with a lesson and prevention rule. Refuses near-duplicates; capsules surface these as do-not-repeat rules. Only for repeat-prevention value.")]
     public string AddMistake(
-        [Description("Short mistake title, e.g. 'Trusted mtime after git restore'")] string title,
-        [Description("Project name (optional; alias or repo name works)")] string? project = null,
-        [Description("The lesson — why it happened and what it taught")] string? lesson = null,
+        [Description("Short mistake title")] string title,
+        [Description("Project (optional; alias/repo ok)")] string? project = null,
+        [Description("The lesson — why it happened, what it taught")] string? lesson = null,
         [Description("The prevention rule a future agent must follow")] string? prevention = null,
-        [Description("Create even if a very similar mistake exists (default false)")] bool allowDuplicate = false,
-        [Description("Store even if the content gate flags secrets (default false)")] bool allowRiskyContent = false) =>
+        [Description("Create even if a similar mistake exists")] bool allowDuplicate = false,
+        [Description("Store even if the secret gate flags it")] bool allowRiskyContent = false) =>
         Safe(() => Created(ctx.Writer.CreateMistake(title, project, lesson, prevention, allowDuplicate, allowRiskyContent)));
 
     [McpServerTool(Name = "mindvault_list_mistakes", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Active lessons from the mistake ledger (status active/open), newest first — the do-not-repeat list. Pass includeResolved for the full history.")]
+    [Description("Active lessons from the mistake ledger, newest first — the do-not-repeat list. includeResolved for full history.")]
     public string ListMistakes(
-        [Description("Limit to one project (alias or repo name also works)")] string? project = null,
+        [Description("Limit to one project (alias/repo ok)")] string? project = null,
         [Description("Include resolved (status done) lessons too")] bool includeResolved = false) =>
         Safe(() =>
         {
@@ -309,7 +315,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_resolve_mistake", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Mark a mistake's lesson as no longer active (status: done). It stays in the ledger for history; it just stops appearing in capsules and do-not-repeat lists.")]
+    [Description("Mark a mistake's lesson no longer active (status: done). Stays in the ledger for history; stops appearing in capsules and do-not-repeat lists.")]
     public string ResolveMistake(
         [Description("Note reference of the mistake")] string note) =>
         Safe(() =>
@@ -319,12 +325,12 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_promote_note", Destructive = true, Idempotent = false, OpenWorld = false)]
-    [Description("Promote a thought (or untyped note) into durable memory: decision, memory, task, risk or mistake. Validates required fields, runs the duplicate gate, snapshots, rewrites frontmatter, links the project and moves the note to its correct folder. Body content is preserved verbatim; the file name never changes. Never guesses a project — pass one when the note has none.")]
+    [Description("Promote a thought/untyped note into durable memory (decision, memory, task, risk or mistake): validates, runs the duplicate gate, rewrites frontmatter, links and moves it. Body preserved. Never guesses.")]
     public string PromoteNote(
         [Description("Note reference of the thought/untyped note")] string noteRef,
         [Description("Target type: decision, memory, task, risk or mistake")] string to,
-        [Description("Project name (required for decision/task/risk when the note has no project:)")] string? project = null,
-        [Description("Promote even if a very similar note exists (default false)")] bool allowDuplicate = false) =>
+        [Description("Project (required for decision/task/risk if the note has none)")] string? project = null,
+        [Description("Promote even if a similar note exists")] bool allowDuplicate = false) =>
         Safe(() =>
         {
             var r = ctx.Writer.PromoteNote(noteRef, to, project, allowDuplicate);
@@ -336,10 +342,10 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_organize_vault", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Propose placement moves for misfiled notes with a reason per move (type=..., status=..., project=...). Dry-run by default — NOTHING moves unless apply is true, and apply only executes the safe high-confidence proposals (snapshot-first, atomic). Archived notes and templates are never touched; uncertain notes are returned under needsReview instead of moved.")]
+    [Description("Propose placement moves for misfiled notes, one reason per move. Dry-run by default; apply=true executes only safe high-confidence moves (snapshot-first, atomic). Archived/templates untouched; uncertain notes go under needsReview.")]
     public string OrganizeVault(
-        [Description("Limit to one project (alias or repo name also works)")] string? project = null,
-        [Description("Execute the proposed moves (default false = dry-run)")] bool apply = false) =>
+        [Description("Limit to one project (alias/repo ok)")] string? project = null,
+        [Description("Execute the moves (default false = dry-run)")] bool apply = false) =>
         Safe(() =>
         {
             var r = apply ? ctx.Organizer.Apply(project) : ctx.Organizer.Plan(project);
@@ -351,9 +357,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_create_map", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("Add a generated map block to a project's hub note (the type: project note): start-here pointers, key decisions, active tasks, open risks, mistakes, do-not-repeat rules, constraints, work areas, recent sessions, and needs-review/orphans/broken-links/unsummarized health with an organisation score — a compact navigation layer for humans and agents, appended between the mindvault-generated markers at the end of the hub body. Fails if the hub already has a map block (use mindvault_rebuild_map). Any legacy 09_Maps file is migrated.")]
+    [Description("First-time build of the generated map block on a project's hub note (start-here, decisions, tasks, risks, do-not-repeat, health, org score). Fails if one exists — use rebuild_map. Snapshots first.")]
     public string CreateMap(
-        [Description("Project name (alias or repo name also works)")] string project) =>
+        [Description("Project (alias/repo name ok)")] string project) =>
         Safe(() =>
         {
             var r = ctx.Maps.Create(project);
@@ -361,9 +367,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_rebuild_map", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Refresh the map block on a project's hub note from current vault state: start-here, agent route pointer, decisions/tasks/risks/mistakes, do-not-repeat rules, work areas, sessions, needs-review/orphans/broken-links health and an organisation score. Only the content between the mindvault-generated markers is rewritten — human text (and any summary block) is preserved verbatim. Snapshots first; when the block is already current it writes nothing. Any legacy 09_Maps file is migrated.")]
+    [Description("Refresh an existing map block (see create_map) from current vault state. Only content between the generated markers is rewritten; human text preserved. Snapshots first; no-op when current.")]
     public string RebuildMap(
-        [Description("Project name (alias or repo name also works)")] string project) =>
+        [Description("Project (alias/repo name ok)")] string project) =>
         Safe(() =>
         {
             var r = ctx.Maps.Rebuild(project);
@@ -371,7 +377,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_list_maps", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("List project hubs and whether each carries a generated map block, plus any remaining legacy 09_Maps files (flagged as legacy to migrate). Read a project's map block for a compact overview instead of listing the whole vault.")]
+    [Description("List project hubs and whether each carries a generated map block, plus any legacy 09_Maps files (flagged to migrate).")]
     public string ListMaps() =>
         Safe(() =>
         {
@@ -380,9 +386,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_get_project_map", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Read a project's map block from its hub note — the cheapest orientation read: decisions, risks, do-not-repeat rules and health in one payload. Prefer this over multiple searches when starting on a project.")]
+    [Description("Read the pre-generated map block stored on a project's hub note — the cheapest orientation read (no computation). Static; rebuild_map refreshes it. Empty until create_map has run.")]
     public string GetProjectMap(
-        [Description("Project name (alias or repo name also works)")] string project) =>
+        [Description("Project (alias/repo name ok)")] string project) =>
         Safe(() =>
         {
             var (proj, _) = ctx.ProjectDetect.ResolveOrThrow(project);
@@ -402,15 +408,16 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_build_route_card", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Agent navigation brief for a project (optionally focused by a goal, current source file or query): the 3-5 notes to READ FIRST with reasons, token estimates and summary snippets; what can wait; what NOT to read and why; constraints, decisions in force, do-not-repeat rules, risks and tasks; suggested next tool calls — all under a token budget. Call this BEFORE broad searches. Ambiguous projects return candidates.")]
+    [Description("WHICH notes to read (and skip) before broad searching, ranked under a token budget: 3-5 to read first with reasons, what can wait, what NOT to read. build_context_capsule gives the facts. Focus by goal, file or query.")]
     public string BuildRouteCard(
-        [Description("Project name (alias or repo name also works)")] string project,
-        [Description("What you are trying to achieve (free text)")] string? goal = null,
-        [Description("Source file being edited (repo-relative path)")] string? currentFile = null,
+        [Description("Project (alias/repo name ok)")] string project,
+        [Description("What you are trying to achieve")] string? goal = null,
+        [Description("Source file being edited (repo-relative)")] string? currentFile = null,
         [Description("Free-text focus query (alternative to goal)")] string? query = null,
         [Description("Max read-first notes (default 5)")] int maxNotes = 0,
-        [Description("Token budget for the read-first list (default 4000)")] int maxTokens = 0,
-        [Description("'json' (default) or 'markdown'")] string format = "json") =>
+        [Description("Token budget for read-first (default 4000)")] int maxTokens = 0,
+        [Description("'json' (default) or 'markdown'")] string format = "json",
+        [Description("Include the flat sourcePaths list")] bool includeSources = false) =>
         Safe(() =>
         {
             var budget = new ContextBudget(
@@ -419,17 +426,18 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
             var outcome = ctx.Routes.Build(project, goal, currentFile, query, budget);
             if (outcome.Card is null)
                 return new { ambiguous = true, candidates = outcome.Candidates };
+            var card = includeSources ? outcome.Card : outcome.Card with { SourcePaths = [] };
             return string.Equals(format, "markdown", StringComparison.OrdinalIgnoreCase)
-                ? new { markdown = RouteCardService.ToMarkdown(outcome.Card) }
-                : (object)new { routeCard = outcome.Card };
+                ? new { markdown = RouteCardService.ToMarkdown(card) }
+                : (object)new { routeCard = card };
         });
 
     [McpServerTool(Name = "mindvault_build_read_plan", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Strict ordered read plan: at most 5 read_note steps (maps and hubs first), each with a reason and expected use, an explicit stop condition, do-not-read guidance and a narrowed search as the only fallback. Follow it literally and stop when the stop conditions are met — do not keep reading.")]
+    [Description("A strict ordered read_note sequence (<=5 steps) with an explicit stop condition — follow literally and stop when met. build_route_card ranks candidates; this dictates exact steps. For zero discretion about what to read next.")]
     public string BuildReadPlan(
-        [Description("Project name (alias or repo name also works)")] string project,
-        [Description("What you are trying to achieve (free text)")] string? goal = null,
-        [Description("Source file being edited (repo-relative path)")] string? currentFile = null,
+        [Description("Project (alias/repo name ok)")] string project,
+        [Description("What you are trying to achieve")] string? goal = null,
+        [Description("Source file being edited (repo-relative)")] string? currentFile = null,
         [Description("Max reads (default and cap: 5)")] int maxReads = 5) =>
         Safe(() =>
         {
@@ -440,9 +448,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_token_audit", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Where the tokens go: estimated totals (ceil(chars/4)) by tier, the largest notes, large notes lacking generated summaries (read raw = wasted tokens), notes worth splitting, capsule-vs-route cost, waste warnings and recommended fixes.")]
+    [Description("Where the tokens go: estimated totals by tier, largest notes, large notes lacking summaries, notes worth splitting, capsule-vs-route cost, waste warnings and fixes.")]
     public string TokenAudit(
-        [Description("Limit to one project (alias or repo name also works)")] string? project = null) =>
+        [Description("Limit to one project (alias/repo ok)")] string? project = null) =>
         Safe(() =>
         {
             var r = ctx.TokenAudit.Run(project);
@@ -450,11 +458,11 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_generate_summaries", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Deterministic extractive summary blocks (mindvault-summary markers) for large notes: one-line summary, agentUse, key points — generated from the note's own headings/frontmatter/body, never invented, no external LLM. Dry-run by default; apply=true splices only the generated block (snapshot-first) and preserves all human text. Low-quality summaries are marked needsReview.")]
+    [Description("Splice extractive summary blocks (summary, agentUse, key points) into large notes — from the note's own text, no LLM. Dry-run by default; apply=true writes the generated block only.")]
     public string GenerateSummaries(
-        [Description("Summarize one project's large notes (alias or repo name also works)")] string? project = null,
-        [Description("Or summarize exactly one note (path, title or [[wiki link]])")] string? note = null,
-        [Description("Write the blocks (default false = dry-run preview)")] bool apply = false) =>
+        [Description("Summarize one project's large notes (alias/repo ok)")] string? project = null,
+        [Description("Or summarize exactly one note (ref)")] string? note = null,
+        [Description("Write the blocks (default false = dry-run)")] bool apply = false) =>
         Safe(() =>
         {
             if (project is not null && note is not null)
@@ -470,9 +478,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_organisation_score", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Organisation score 0-100 across 11 explainable categories (folder placement, frontmatter, link/map/summary coverage, duplicate/orphan/stale risk, thought hygiene, token efficiency, agent readiness), each with its evidence, plus weaknesses, recommended fixes and estimated token waste/savings.")]
+    [Description("Organisation score 0-100 across 11 explainable categories (placement, frontmatter, link/map/summary coverage, duplicate/orphan/stale risk, thought hygiene, token efficiency, agent readiness), with evidence and fixes.")]
     public string OrganisationScore(
-        [Description("Limit to one project (alias or repo name also works)")] string? project = null) =>
+        [Description("Limit to one project (alias/repo ok)")] string? project = null) =>
         Safe(() =>
         {
             var r = ctx.OrgScore.Run(project);
@@ -480,9 +488,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_build_graph", Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Build the typed relationship graph from explicit wiki links (typed by endpoint note types: task_tracks_decision, mistake_prevented_by, risk_mitigated_by, supersedes, ...), frontmatter project membership and title-collision duplicates. Writes the operational sidecar .mindvault/link-graph.jsonl (disposable, like the index) and returns edge counts by type. Deterministic — no inference beyond what the vault already states.")]
+    [Description("Build the typed relationship graph from wiki links (typed by endpoint, e.g. task_tracks_decision, supersedes), project membership and title collisions. Writes the disposable link-graph.jsonl sidecar, returns edge counts by type.")]
     public string BuildGraph(
-        [Description("Limit to edges touching one project (alias or repo name also works)")] string? project = null) =>
+        [Description("Limit to edges touching one project (alias/repo ok)")] string? project = null) =>
         Safe(() =>
         {
             var r = ctx.Graph.Build(project);
@@ -490,7 +498,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_explain_relationships", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Explain why two notes matter together: the direct typed edge between them, or the strongest two-hop path, with reasons and confidence. Computed live from the current vault, never stale.")]
+    [Description("Explain why two notes matter together: the direct typed edge or the strongest two-hop path, with reasons and confidence. Computed live.")]
     public string ExplainRelationships(
         [Description("First note (path, title or [[wiki link]])")] string from,
         [Description("Second note (path, title or [[wiki link]])")] string to) =>
@@ -501,9 +509,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_find_low_value_notes", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Notes agents should NOT read by default, each with explicit reasons: archived, superseded, rejected, hidden/negative feedback, raw thoughts, orphans, stale logs, missing/ambiguous project, large-without-summary. Guidance only — nothing is moved or deleted. Route cards and read plans already honour this list.")]
+    [Description("Notes agents should NOT read by default, each with reasons (archived, superseded, rejected, negative feedback, raw thoughts, orphans, stale logs, large-without-summary). Route cards/read plans honour this.")]
     public string FindLowValueNotes(
-        [Description("Limit to one project (alias or repo name also works)")] string? project = null) =>
+        [Description("Limit to one project (alias/repo ok)")] string? project = null) =>
         Safe(() =>
         {
             var r = ctx.LowValue.Find(project);
@@ -511,10 +519,10 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_compile_brain", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("One-pass organisation compiler: maps (create/rebuild), generated summaries, the typed link-graph sidecar, health reports and the organisation score. Dry-run by default — apply=true writes, snapshot-first, generated blocks only; human text is never touched. Never moves notes (that stays with mindvault_organize_vault).")]
+    [Description("Run rebuild_map + generate_summaries + build_graph + org score in one pass. Dry-run by default; apply=true writes generated blocks only. Never moves notes (that is organize_vault).")]
     public string CompileBrain(
-        [Description("Compile one project (alias or repo name also works); omit for all projects")] string? project = null,
-        [Description("Write the artefacts (default false = dry-run preview)")] bool apply = false) =>
+        [Description("Compile one project (alias/repo ok); omit for all")] string? project = null,
+        [Description("Write the artefacts (default false = dry-run)")] bool apply = false) =>
         Safe(() =>
         {
             var r = ctx.Compiler.Compile(project, apply);
@@ -526,11 +534,11 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_suggest_links", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Deterministic link suggestions with a reason and confidence per pair: type relationships within a project (decision↔task, risk↔task, ...), shared specific tags, shared title tokens and body mentions. Never applies anything — apply a suggestion with mindvault_link_notes. Archived notes, raw thoughts and already-linked pairs are excluded.")]
+    [Description("Suggest note links with a reason and confidence per pair (type relationships, shared tags/title tokens, body mentions). Never applies — pass one to link_notes. Excludes archived, raw thoughts and linked pairs.")]
     public string SuggestLinks(
-        [Description("Suggest for one note (path, title or [[wiki link]])")] string? note = null,
-        [Description("Or suggest across a project (alias or repo name also works)")] string? project = null,
-        [Description("Max suggestions (default 10 per note, 20 per project)")] int limit = 0) =>
+        [Description("Suggest for one note (ref)")] string? note = null,
+        [Description("Or suggest across a project (alias/repo ok)")] string? project = null,
+        [Description("Max suggestions (default 10/note, 20/project)")] int limit = 0) =>
         Safe(() =>
         {
             if (note is null == (project is null))
@@ -542,7 +550,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_find_broken_links", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("List wiki links whose target matches no note title or file name (frontmatter links and body [[links]] alike). Fix by creating the missing note, correcting the link text in Obsidian, or removing the stale link.")]
+    [Description("List wiki links whose target matches no note title or file name (frontmatter and body [[links]] alike). Fix by creating the missing note, correcting the link, or removing it.")]
     public string FindBrokenLinks() =>
         Safe(() =>
         {
@@ -551,7 +559,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_find_orphans", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("List managed, non-archived notes with no links in either direction — memory that nothing connects to. Raw thoughts are excluded (inbox captures are expected to be unlinked). Fix by linking them (mindvault_suggest_links helps) or archiving what is obsolete.")]
+    [Description("List managed, non-archived notes with no links in either direction — memory nothing connects to. Raw thoughts excluded. Fix by linking (suggest_links helps) or archiving what is obsolete.")]
     public string FindOrphans() =>
         Safe(() =>
         {
@@ -560,9 +568,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_audit_frontmatter", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Frontmatter quality audit with a proposed fix per finding: missing/invalid keys, unresolvable or inconsistent project names, notes not linked to their project hub, project notes without aliases/repoNames. Read-only — nothing is auto-fixed.")]
+    [Description("Frontmatter audit with a proposed fix per finding: missing/invalid keys, unresolvable/inconsistent project names, notes not linked to their hub, projects lacking aliases/repoNames. Read-only.")]
     public string AuditFrontmatter(
-        [Description("Limit to one project (alias or repo name also works)")] string? project = null) =>
+        [Description("Limit to one project (alias/repo ok)")] string? project = null) =>
         Safe(() =>
         {
             var r = ctx.Audits.AuditFrontmatter(project);
@@ -570,7 +578,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_audit_aliases", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Alias hygiene audit across project notes: duplicate aliases, redundant self-aliases, cross-project alias collisions (which make detection refuse to guess) and projects missing aliases/repoNames. Read-only.")]
+    [Description("Alias hygiene audit: duplicate aliases, redundant self-aliases, cross-project collisions (which make detection refuse to guess), projects missing aliases/repoNames. Read-only.")]
     public string AuditAliases() =>
         Safe(() =>
         {
@@ -579,9 +587,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_detect_project", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Map a repository/folder name (or any shorthand) to a vault project using exact titles, declared aliases, repoNames frontmatter and separator-insensitive comparison. Returns the match with a confidence tier, or candidates when ambiguous/uncertain — it never guesses. Call this first when starting work in a repo.")]
+    [Description("Map a repo/folder name or shorthand to a vault project via titles, aliases, repoNames and separator-insensitive match. Returns the match with a confidence tier, or candidates when ambiguous — never guesses.")]
     public string DetectProject(
-        [Description("Repo folder name, project shorthand or alias, e.g. 'mind-vault'")] string name) =>
+        [Description("Repo folder, shorthand or alias, e.g. 'mind-vault'")] string name) =>
         Safe(() =>
         {
             var d = ctx.ProjectDetect.Detect(name);
@@ -597,9 +605,9 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_find_related", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Related notes for one note, each with a reason: outgoing wiki links, backlinks, active same-project memory, and same-type notes with similar titles (possible duplicates/follow-ups). Compact and deterministic; use it to find the tasks/risks/reviews around a decision without multiple searches.")]
+    [Description("Related notes for one note, each with a reason: outgoing links, backlinks, active same-project memory, same-type similar titles. Finds the tasks/risks/reviews around a decision in one call.")]
     public string FindRelated(
-        [Description("Note reference: path, title, filename or [[wiki link]]")] string noteRef,
+        [Description("Note ref: path, title, filename or [[wiki link]]")] string noteRef,
         [Description("Max related notes (default 12, max 50)")] int limit = RelatedNotesService.DefaultLimit) =>
         Safe(() =>
         {
@@ -608,7 +616,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_validate_vault", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Validate the vault: folders, frontmatter schema, nested YAML, duplicate titles, broken wiki links, statuses, project references, stale tasks, superseded-decision contradictions and environment problems. Returns severity counts plus the top issues.")]
+    [Description("Validate the vault: folders, frontmatter schema, nested YAML, duplicate titles, broken links, statuses, project refs, stale tasks, superseded-decision contradictions, environment. Returns severity counts plus top issues.")]
     public string ValidateVault() => Safe(() =>
     {
         var report = ctx.Validator.Validate();
@@ -624,7 +632,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
     });
 
     [McpServerTool(Name = "mindvault_get_project_context", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Compact project bundle: goal, non-negotiables, active/blocked tasks, decisions in force, risks, constraints, recent implementation logs, recommended next reads and warnings (stale/contradictory/duplicate). Use this first to understand a project.")]
+    [Description("Raw project bundle (goal, tasks, decisions, risks, constraints, logs, warnings) at a chosen detail level. Plumbing under the orientation tools — prefer start_session or build_context_capsule unless you want the raw bundle.")]
     public string GetProjectContext(
         [Description("Project name")] string project,
         [Description("Max items per list (default 10, max 50)")] int limit = 10,
@@ -632,10 +640,10 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         Safe(() => ctx.Projects.Get(project, limit, detailLevel));
 
     [McpServerTool(Name = "mindvault_get_context_pack", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Generated briefing pack for starting work on a project: summary, goal, non-negotiables, relevant architecture/decisions, active tasks, risks, constraints, suggested next reads and a do-not-forget list. Pass the task description to surface task-relevant notes first. Compact by design — it carries refs, not full notes.")]
+    [Description("Briefing pack keyed to a task description: pass what you are about to do and task-relevant notes surface first. build_context_capsule is mode-shaped and budgeted; this is task-shaped. Carries refs.")]
     public string GetContextPack(
         [Description("Project name")] string project,
-        [Description("What you are about to work on (optional; improves relevance)")] string? task = null,
+        [Description("What you are about to work on (optional)")] string? task = null,
         [Description("Output: json (default) or markdown")] string output = "json") =>
         Safe(() =>
         {
@@ -649,7 +657,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_check_draft", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Quality-check a note idea BEFORE creating it: duplicate/near-duplicate detection, missing project, vague titles, and supersede suggestions for conflicting decisions. Blockers mean the create would fail or duplicate; warnings are advisory. Always call this before creating durable notes.")]
+    [Description("Quality-check a note idea BEFORE creating it: duplicate detection, missing project, vague titles, supersede suggestions. Blockers mean the create would fail or duplicate; warnings advise.")]
     public string CheckDraft(
         [Description("Note type, e.g. decision, task, risk")] string type,
         [Description("Project name (required for decisions and tasks)")] string? project = null,
@@ -666,7 +674,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_supersede_decision", Destructive = true, Idempotent = true, OpenWorld = false)]
-    [Description("Replace one decision with another: the old decision gets status 'superseded' and a superseded_by link, the new one gets a supersedes link. Both notes are snapshotted first; if the second write fails the first rolls back.")]
+    [Description("Replace one decision with another: old gets status 'superseded' + a superseded_by link, new gets a supersedes link. Both snapshotted first; if the second write fails the first rolls back.")]
     public string SupersedeDecision(
         [Description("Reference of the decision being replaced")] string oldRef,
         [Description("Reference of the decision that replaces it")] string newRef) =>
@@ -681,37 +689,42 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
         });
 
     [McpServerTool(Name = "mindvault_start_session", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Start a coding session on a project: returns the context pack (goal, constraints, tasks, decisions, warnings) and ensures the project's implementation-log note exists. Call this before coding; call mindvault_end_session when done.")]
+    [Description("The one-call brief to start work: goal, non-negotiables, decisions, do-not-repeat rules, open/blocked tasks, risks, constraints, notes to read first / skip, and the delta since the last handoff — budgeted, each fact once.")]
     public string StartSession(
         [Description("Project name")] string project,
-        [Description("What this session will work on (optional; improves pack relevance)")] string? task = null) =>
-        Safe(() =>
-        {
-            var result = ctx.Sessions.Start(project, task);
-            return new
-            {
-                logNote = result.LogNotePath, logNoteCreated = result.LogNoteCreated,
-                task = result.Task, pack = result.Pack,
-            };
-        });
+        [Description("What this session will work on (optional)")] string? task = null,
+        [Description("Char budget for the brief (default 6000, 1000-32000)")] int maxChars = BriefService.DefaultBudget) =>
+        Safe(() => new { brief = ctx.Sessions.StartBrief(project, task, maxChars) });
 
     [McpServerTool(Name = "mindvault_end_session", Destructive = false, Idempotent = false, OpenWorld = false)]
-    [Description("End a coding session by writing one concise handoff entry to the project's implementation-log note: summary, tests/builds run, follow-ups. Keep it short — this is a handoff, not a transcript.")]
+    [Description("Write one concise handoff (summary, tests, follow-ups) AND optionally batch durable changes: decisions, mistakes, task creates/status-changes. Each item runs its normal gates; one bad item never aborts the rest.")]
     public string EndSession(
         [Description("Project name")] string project,
         [Description("One-line summary of what was accomplished")] string summary,
-        [Description("Tests/builds run and their result, e.g. 'dotnet test green (145)'")] string? tests = null,
-        [Description("Remaining risks or follow-ups (comma-separated), or omit for none")] string? followUps = null,
+        [Description("Tests/builds run and result")] string? tests = null,
+        [Description("Remaining risks/follow-ups (comma-separated), or omit")] string? followUps = null,
+        [Description("Decisions to record: each {title, content?}")] CloseDecision[]? decisions = null,
+        [Description("Mistakes to record: each {title, lesson?, prevention?}")] CloseMistake[]? mistakes = null,
+        [Description("Tasks: {ref, status} to update OR {title} to create")] CloseTask[]? tasks = null,
         [Description("Preview only — change nothing")] bool dryRun = false,
-        [Description("Store even if the content gate flags secrets (default false)")] bool allowRiskyContent = false) =>
+        [Description("Store even if the secret gate flags it")] bool allowRiskyContent = false) =>
         Safe(() =>
         {
-            var result = ctx.Sessions.End(project, summary, tests, followUps, dryRun, allowRiskyContent);
-            return new { dryRun, path = result.Path, snapshot = result.SnapshotPath, message = result.Message, riskWarnings = result.RiskWarnings };
+            var hasBatch = decisions is { Length: > 0 } || mistakes is { Length: > 0 } || tasks is { Length: > 0 };
+            if (!hasBatch)
+            {
+                var basic = ctx.Sessions.End(project, summary, tests, followUps, dryRun, allowRiskyContent);
+                return new { dryRun, path = basic.Path, snapshot = basic.SnapshotPath,
+                    message = basic.Message, riskWarnings = basic.RiskWarnings, items = Array.Empty<object>() };
+            }
+            var items = new SessionCloseItems(decisions, mistakes, tasks);
+            var result = ctx.Sessions.Close(project, summary, tests, followUps, items, dryRun, allowRiskyContent);
+            return new { dryRun = result.DryRun, path = result.Path, snapshot = result.SnapshotPath,
+                message = result.Message, riskWarnings = result.RiskWarnings, items = (object)result.Items };
         });
 
     [McpServerTool(Name = "mindvault_health", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Fast health check with a verdict (good/warning/critical): vault configured/writable, index exists/stale, note count, last scan and app version. Compact; never returns secrets, environment variables or host paths.")]
+    [Description("Fast health check with a verdict (good/warning/critical): vault writable, index exists/stale, note count, last scan and version. No secrets, env vars or host paths.")]
     public string Health() => Safe(() =>
     {
         var health = BuildHealth();
@@ -733,7 +746,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
     });
 
     [McpServerTool(Name = "mindvault_diagnostics", ReadOnly = true, Idempotent = true, OpenWorld = false)]
-    [Description("Deeper diagnostics: health plus transport, index schema version, a validation summary (severity counts) and warnings. Runs a scan+validation, so it is slower than mindvault_health. Never returns secrets, environment variables or host paths.")]
+    [Description("Deeper diagnostics: health plus transport, index schema version, validation summary and warnings. Runs a scan+validation, so slower than health. No secrets, env vars or host paths.")]
     public string Diagnostics() => Safe(() =>
     {
         var health = BuildHealth();
@@ -804,7 +817,7 @@ public sealed class MindVaultTools(VaultContext ctx, McpRuntimeInfo? runtime = n
     }
 
     [McpServerTool(Name = "mindvault_rebuild_index", Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Clear and rebuild the SQLite index from the Markdown files (the files are canonical; the index is disposable cache).")]
+    [Description("Clear and rebuild the SQLite index from the Markdown files (files are canonical; the index is disposable cache).")]
     public string RebuildIndex() => Safe(() =>
     {
         var result = ctx.Scanner.Scan(full: true);

@@ -1124,20 +1124,12 @@ public static class CliRunner
         {
             case "start":
             {
-                var result = ctx.Sessions.Start(args.Require("project"), args.Opt("task"));
+                var brief = ctx.Sessions.StartBrief(args.Require("project"), args.Opt("task"),
+                    args.IntOpt("max-chars", BriefService.DefaultBudget));
                 if (json)
-                {
-                    stdout.WriteLine(Json.Serialize(new
-                    {
-                        ok = true, logNote = result.LogNotePath, logNoteCreated = result.LogNoteCreated,
-                        task = result.Task, pack = result.Pack,
-                    }));
-                }
+                    stdout.WriteLine(Json.Serialize(new { ok = true, brief }));
                 else
-                {
-                    if (result.LogNoteCreated) stdout.WriteLine($"created session log note: {result.LogNotePath}");
-                    stdout.WriteLine(ContextPackService.ToMarkdown(result.Pack));
-                }
+                    stdout.WriteLine(BriefService.ToText(brief));
                 return 0;
             }
             case "log":
@@ -1189,7 +1181,7 @@ public static class CliRunner
             }
             default:
                 throw new MindVaultException(
-                    "Usage: session start --project p [--task t] | session checkpoint|log --project p --summary s | " +
+                    "Usage: session start --project p [--task t] [--max-chars n] | session checkpoint|log --project p --summary s | " +
                     "session handoff|end --project p --summary s [--tests t] [--followups f] | session recent --project p");
         }
     }
@@ -1736,7 +1728,9 @@ public static class CliRunner
           decision list [--project p] [--all]      active decisions (+relations)
           decision graph [--project p]             decision supersede/related graph
           decision supersede --old "<ref>" --new "<ref>"
-          session start --project p [--task t]     briefing pack + ensures the session log note
+          session start --project p [--task t] [--max-chars n]
+                                                   one-call session brief (goal, decisions, do-not-repeat,
+                                                   read-first, delta since last handoff) + ensures the log note
           session checkpoint|log --project p --summary s [--dry-run]
                                                    mid-session breadcrumb (use sparingly)
           session handoff|end --project p --summary s [--tests t] [--followups f] [--dry-run]
@@ -1747,7 +1741,7 @@ public static class CliRunner
                                                    budgeted, source-backed context capsule
           work-context --project p (--current-file f | --query q | --note "<ref>") [--limit n]
                                                    memory related to what you are working on, with reasons
-          recall [--project p] [--since "7 days"|yyyy-MM-dd] [--on-this-day] [--format markdown|json]
+          recall [--project p] [--since "7 days"|yyyy-MM-dd|last-handoff] [--on-this-day] [--format markdown|json]
                                                    what changed in a time window, grouped
           ops                                      one-call brain state + recommended fixes
           pin --note "<ref>"                       boost a note in capsules/work-context ranking

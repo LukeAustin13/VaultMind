@@ -3,6 +3,55 @@
 All notable changes to MindVault. Format: keep-a-changelog-ish; versions are single-source
 in `src/MindVault.Core/MindVaultVersion.cs`.
 
+## 0.8.0 — 2026-07-05 (Agent efficiency)
+
+MindVault's consumers are almost entirely AI agents, so this release optimises
+tokens-per-session on four measured fronts: the tool schema the agent loads before any work,
+the session brief it reads to start, the recall window it uses to catch up, and the number of
+calls it makes to close honestly. Tool count is unchanged at 55; nothing is renamed.
+
+### Added
+- **Core tool profile** — `MINDVAULT_TOOL_PROFILE` (env var; `--tool-profile` is the CLI
+  equivalent; default `full`). Setting it to
+  `core` exposes only the 20 session-loop tools (detect_project, status, start_session,
+  checkpoint_session, end_session, recall, search, read_note, get_work_context,
+  build_route_card, build_context_capsule, capture_thought, check_draft, create_decision,
+  create_task, add_mistake, append_to_note, update_frontmatter, link_notes, record_feedback).
+  The full 55-tool schema costs an agent roughly 9–12k tokens of context every session before
+  any work happens; the core profile cuts that to about a third. Maintenance and hygiene work
+  (audits, organise, compile, maps, summaries, graph) still needs `full`. Details:
+  `docs/MCP_SETUP.md`.
+- **One-call session brief** — `mindvault_start_session` returns a budgeted brief (new
+  optional `maxChars`, default 6000) instead of a full context pack: goal, non-negotiables,
+  decisions in force, do-not-repeat rules, open/blocked tasks, risks, constraints, a
+  token-priced read-first list paired with a do-not-read list, and **`deltaSinceLastHandoff`**
+  — what changed since the agent's previous handoff (counts + up to 10 items). Each fact
+  appears once. For most sessions this replaces calling `build_context_capsule` +
+  `build_route_card` separately at the start; both remain for mid-session use.
+- **Handoff-relative recall** — `mindvault_recall` accepts `since: "last-handoff"`: the window
+  starts at the most recent handoff heading in the project's session log, and falls back to a
+  7-day window with a warning when no handoff exists yet. Requires a `project` argument;
+  calendar values keep working without one.
+- **Batched session close** — `mindvault_end_session` accepts optional `decisions`, `mistakes`
+  and `tasks` arrays (tasks can also update an existing task's status by reference). Each item
+  runs the same duplicate and risky-content gates as the standalone tool and returns a
+  per-item outcome (created / updated / skipped_duplicate / blocked / error); one bad item
+  never aborts the handoff or the other items, and the handoff is written first. An honest
+  close drops from the old 5–8 MCP calls to one.
+- **Payload-slimming params** — `mindvault_search` gains `snippetChars` (0 = refs-only mode);
+  `mindvault_build_context_capsule` gains `format` (`json` | `markdown`, returns one not both);
+  capsule and route-card `sourcePaths` move behind `includeSources` (default off — items
+  already carry their paths).
+
+### Changed
+- **`build_context_capsule` no longer dual-emits.** It previously returned both the structured
+  capsule and its rendered markdown (~2× the payload); `format` now returns exactly one.
+- **`sourcePaths` are opt-in.** Capsule and route-card source-path lists are off by default and
+  returned only with `includeSources`, since each item already carries its own path.
+- **Tool descriptions tightened repo-wide** to shrink the schema an agent loads (guard-tested
+  for size); no tool renamed or removed, surface unchanged at 55.
+- Version 0.7.0 → 0.8.0.
+
 ## 0.7.0 — 2026-07-05 (Map on the hub)
 
 The project map stops being a separate note and becomes a generated block on the project hub.

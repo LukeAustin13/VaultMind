@@ -105,24 +105,7 @@ public sealed class CapsuleService(VaultContext ctx)
         var knownMistakes = mistakes
             .Select(m => new CapsuleItem(m.Title, m.Path, m.Status, m.Updated, "active lesson"))
             .ToList();
-        var doNotRepeat = new List<string>();
-        foreach (var m in mistakes.Take(5))
-        {
-            string? prevention = null;
-            try
-            {
-                var raw = File.ReadAllText(ctx.Resolver.AbsolutePathOf(m)).Replace("\r\n", "\n");
-                FrontmatterCodec.TryExtract(raw, out _, out var body);
-                // The prevention rule IS the do-not-repeat rule; the lesson text is fallback.
-                prevention = SectionExtractor.GetSectionText(body, "Prevention Task", 200)
-                             ?? SectionExtractor.GetSectionText(body, "How To Avoid It", 200);
-            }
-            catch (IOException) { /* the title alone still carries the lesson */ }
-            var label = m.Title.StartsWith("Mistake:", StringComparison.OrdinalIgnoreCase)
-                ? m.Title["Mistake:".Length..].Trim()
-                : m.Title;
-            doNotRepeat.Add(prevention is null ? label : $"{label}: {prevention}");
-        }
+        var doNotRepeat = DoNotRepeatRules(ctx, mistakes, 5);
 
         var openTasks = Items(context.ActiveTasks, "open/active task");
         var blockedTasks = Items(context.BlockedTasks, "blocked task");
@@ -200,6 +183,34 @@ public sealed class CapsuleService(VaultContext ctx)
             capsule = Snapshot();
         }
         return new CapsuleOutcome(capsule, []);
+    }
+
+    /// <summary>
+    /// Turns mistake notes into do-not-repeat rules: the note's Prevention Task (or How To Avoid
+    /// It) section is the rule, the title the fallback. Shared by capsules and the session brief
+    /// so the extraction lives in exactly one place.
+    /// </summary>
+    internal static List<string> DoNotRepeatRules(VaultContext ctx, IEnumerable<NoteSummary> mistakes, int max)
+    {
+        var rules = new List<string>();
+        foreach (var m in mistakes.Take(max))
+        {
+            string? prevention = null;
+            try
+            {
+                var raw = File.ReadAllText(ctx.Resolver.AbsolutePathOf(m)).Replace("\r\n", "\n");
+                FrontmatterCodec.TryExtract(raw, out _, out var body);
+                // The prevention rule IS the do-not-repeat rule; the lesson text is fallback.
+                prevention = SectionExtractor.GetSectionText(body, "Prevention Task", 200)
+                             ?? SectionExtractor.GetSectionText(body, "How To Avoid It", 200);
+            }
+            catch (IOException) { /* the title alone still carries the lesson */ }
+            var label = m.Title.StartsWith("Mistake:", StringComparison.OrdinalIgnoreCase)
+                ? m.Title["Mistake:".Length..].Trim()
+                : m.Title;
+            rules.Add(prevention is null ? label : $"{label}: {prevention}");
+        }
+        return rules;
     }
 
     private static IReadOnlyList<string> SourcePathsOf(NoteSummary proj, params IEnumerable<CapsuleItem>[] groups) =>

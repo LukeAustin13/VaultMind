@@ -107,6 +107,35 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
+    public void SessionStartPrintsTheBrief()
+    {
+        var (code, stdout, _) = RunCli("session", "start", "--project", "Alpha", "--task", "cli check");
+        Assert.Equal(0, code);
+        Assert.Contains("Session Brief — Alpha", stdout);
+        Assert.Contains("Goal:", stdout);
+        Assert.Contains("Decisions in force:", stdout);
+        Assert.Contains("Read first:", stdout);
+        Assert.Contains("Since last handoff:", stdout);
+        Assert.True(File.Exists(_tv.Abs("06_Agent_Memory/Log - Alpha.md")));
+    }
+
+    [Fact]
+    public void SessionStartJsonSerializesTheBrief()
+    {
+        // With a prior handoff the brief carries a non-null delta (null values are omitted).
+        Assert.Equal(0, RunCli("session", "end", "--project", "Alpha", "--summary", "first pass").Code);
+
+        var (code, stdout, _) = RunCli("session", "start", "--project", "Alpha", "--max-chars", "2000", "--json");
+        Assert.Equal(0, code);
+        using var doc = JsonDocument.Parse(stdout);
+        Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());
+        var brief = doc.RootElement.GetProperty("brief");
+        Assert.Equal("Alpha", brief.GetProperty("project").GetString());
+        Assert.True(brief.TryGetProperty("decisionsInForce", out _));
+        Assert.True(brief.TryGetProperty("deltaSinceLastHandoff", out _));
+    }
+
+    [Fact]
     public void ValidateExitsNonZeroOnFixtureErrors()
     {
         var (code, stdout, _) = RunCli("validate");

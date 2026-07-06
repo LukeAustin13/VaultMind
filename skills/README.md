@@ -22,7 +22,7 @@ Every skill has the same five sections, and a test in the MindVault repo
 
 | Skill | One-liner |
 | --- | --- |
-| `mindvault-session-handoff` | One call to brief in, one call to hand off (capsule + recall aware) |
+| `mindvault-session-handoff` | One budgeted brief in, one batched handoff out (decisions/mistakes/tasks) |
 | `mindvault-project-context` | Load concise project memory before working |
 | `mindvault-route-card` | Token-budgeted read-first/do-not-read brief before any broad search |
 | `mindvault-read-plan` | Strict ordered read plan (max 5 reads) with stop conditions |

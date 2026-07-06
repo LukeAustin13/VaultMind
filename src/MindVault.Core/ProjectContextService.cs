@@ -32,8 +32,16 @@ public sealed class ProjectContextService(VaultContext ctx)
 {
     public const int StaleTaskDays = 60;
 
+    /// <summary>
+    /// How many times <see cref="Get"/> has run this process. Used by tests to prove the session
+    /// brief shares a single project-context query across its composing services rather than
+    /// triggering the same expensive query 2-3 times.
+    /// </summary>
+    public int GetCallCount { get; private set; }
+
     public ProjectContextResult Get(string project, int limit = 10, string detailLevel = "standard")
     {
+        GetCallCount++;
         if (string.IsNullOrWhiteSpace(project))
             throw new MindVaultException("Project name must not be empty.");
         detailLevel = (detailLevel ?? "standard").Trim().ToLowerInvariant();

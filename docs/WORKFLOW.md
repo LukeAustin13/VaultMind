@@ -19,9 +19,13 @@ pay for itself.
 ```
 session start (mindvault_start_session) — project + one line of task intent
 ```
-One call: goal, non-negotiables, decisions in force, task-relevant notes, warnings,
-`doNotForget`. Read 1–5 of the recommended notes at most. If the pack's warnings matter
-today (stale task you're about to duplicate, contradicted decision), deal with them first.
+One call returns a budgeted brief: goal, non-negotiables, decisions in force, do-not-repeat
+rules, open/blocked tasks, risks, constraints, a token-priced read-first / do-not-read list,
+and `deltaSinceLastHandoff` (what changed since your previous handoff). Read the readFirst
+notes at most — scope each read with `mindvault_read_note`'s `section` / `maxChars`. If the
+brief's warnings matter today (stale task you're about to duplicate, contradicted decision),
+deal with them first. The brief replaces calling `build_context_capsule` + `build_route_card`
+separately at the start; both remain for a mid-session refresh.
 
 **During the session — capture only what is durable:**
 - A real decision was made (chose X over Y, locked a schema) → draft-check, then
@@ -34,7 +38,10 @@ today (stale task you're about to duplicate, contradicted decision), deal with t
 ```
 session end — summary + tests (honestly: "not run" is valid) + follow-ups
 ```
-That single block is what makes the next session start warm.
+That single block is what makes the next session start warm. Over MCP,
+`mindvault_end_session` can also batch the decisions, mistakes and tasks that surface right at
+the close into the same call — each runs the same duplicate and content gates as the
+standalone tools, so honest closing drops from 5–8 calls to one.
 
 ## Weekly (5 minutes)
 

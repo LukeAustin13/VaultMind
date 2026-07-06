@@ -9,6 +9,54 @@ shell or SQL access — and supports two transports:
 - **HTTP** (streamable HTTP, token-protected): a long-running LAN endpoint, used by the
   [Docker deployment](DOCKER.md). Never expose it to the internet.
 
+## Tool profile: `core` vs `full`
+
+MindVault's clients are almost entirely AI agents, and every tool's schema is context the
+agent pays for on every session. The full 55-tool surface costs an agent roughly 9–12k
+tokens before any work happens. `MINDVAULT_TOOL_PROFILE` lets you trade surface for tokens:
+
+| Profile | Tools exposed | When |
+| --- | --- | --- |
+| `full` (default) | all 55 | maintenance and hygiene work — audits, organise, compile, maps, summaries, graph, low-value/token/organisation reports |
+| `core` | the 20 session-loop tools | day-to-day agent coding sessions; cuts the schema cost to roughly a third |
+
+Set it in the server's `env` block next to the vault path:
+
+```json
+{
+  "mcpServers": {
+    "mindvault": {
+      "command": "C:/PATH/TO/MindVault/artifacts/mcp/MindVault.Mcp.exe",
+      "args": [],
+      "env": {
+        "MINDVAULT_VAULT_PATH": "C:/PATH/TO/YourObsidianVault",
+        "MINDVAULT_TOOL_PROFILE": "core"
+      }
+    }
+  }
+}
+```
+
+The `--tool-profile full|core` server argument is the CLI alternative to the env var (add it
+to `args`, e.g. `"args": ["--tool-profile", "core"]`).
+
+The **core 20** are the tools the session loop ([AGENT_WORKFLOWS.md](AGENT_WORKFLOWS.md))
+actually uses:
+
+`mindvault_detect_project`, `mindvault_status`, `mindvault_start_session`,
+`mindvault_checkpoint_session`, `mindvault_end_session`, `mindvault_recall`,
+`mindvault_search`, `mindvault_read_note`, `mindvault_get_work_context`,
+`mindvault_build_route_card`, `mindvault_build_context_capsule`,
+`mindvault_capture_thought`, `mindvault_check_draft`, `mindvault_create_decision`,
+`mindvault_create_task`, `mindvault_add_mistake`, `mindvault_append_to_note`,
+`mindvault_update_frontmatter`, `mindvault_link_notes`, `mindvault_record_feedback`.
+
+Everything else — the audits, organisation layer, maps, summaries, graph, token/organisation
+reports, `get_context_pack`, `get_project_map`, decision/mistake listing, and the rest —
+needs `full`. If a session turns out to need a hygiene tool, restart the server with the
+default profile for that work. No tools are renamed or removed by either profile; `core` only
+hides the maintenance surface from the schema.
+
 ## Recommended: publish once, run the exe
 
 ```bash
@@ -123,8 +171,8 @@ stderr — check your MCP client's server logs.
 | Tool | Purpose |
 | --- | --- |
 | `mindvault_status` | Vault path, index state, note count, last scan |
-| `mindvault_search` | FTS5 search with type/project/tag/status filters |
-| `mindvault_read_note` | Read one note (frontmatter, body, backlinks) |
+| `mindvault_search` | FTS5 search with type/project/tag/status filters; `snippetChars` (0 = refs-only) trims the payload |
+| `mindvault_read_note` | Read one note; `section` / `maxChars` scope the read (the biggest per-read saver) |
 | `mindvault_list_notes` | Filtered note listing |
 | `mindvault_create_project` | New project note in `01_Projects` |
 | `mindvault_create_decision` | New decision linked to an existing project |
@@ -138,8 +186,8 @@ stderr — check your MCP client's server logs.
 | `mindvault_get_context_pack` | Generated briefing pack; pass the task for relevance-first ordering |
 | `mindvault_check_draft` | Duplicate/vagueness check BEFORE creating a note |
 | `mindvault_supersede_decision` | Replace a decision safely (two-note snapshot + rollback) |
-| `mindvault_start_session` | Context pack + session log setup in one call — use this first |
-| `mindvault_end_session` | One concise dated handoff block |
+| `mindvault_start_session` | Budgeted session brief + log setup in one call (`maxChars`, default 6000 — a soft target: trimming drops lower-priority sections but never truncates the goal, decisions in force, or do-not-repeat rules) — use this first. Covers goal, non-negotiables, decisions in force, do-not-repeat rules, open/blocked tasks, risks, constraints, a token-priced read-first / do-not-read list, and `deltaSinceLastHandoff` |
+| `mindvault_end_session` | One dated handoff block; optionally batches end-of-session `decisions[]` / `mistakes[]` / `tasks[]`, each gated and reported per item |
 | `mindvault_detect_project` | Map a repo/folder name to a vault project (aliases, repoNames, confidence tiers) |
 | `mindvault_find_related` | Links, backlinks and related notes for one note, each with a reason |
 | `mindvault_health` | Fast health check with a good/warning/critical verdict — no secrets, no paths |
@@ -156,9 +204,9 @@ stderr — check your MCP client's server logs.
 | `mindvault_find_orphans` | Managed notes with no links in either direction |
 | `mindvault_audit_frontmatter` | Frontmatter quality findings, each with a proposed fix |
 | `mindvault_audit_aliases` | Alias/repoName hygiene incl. cross-project collisions |
-| `mindvault_build_context_capsule` | Mode-shaped, char-budgeted briefing with do-not-repeat rules and source paths |
+| `mindvault_build_context_capsule` | Mode-shaped, char-budgeted briefing with do-not-repeat rules; `format` returns json OR markdown (not both), `includeSources` for source paths (off by default) |
 | `mindvault_get_work_context` | Memory related to a source file / query / note, reasons on every result |
-| `mindvault_recall` | What changed since a date (or on this day), grouped by type |
+| `mindvault_recall` | What changed since a date, '7 days', or `since: "last-handoff"` (window starts at the most recent handoff heading; 7-day fallback with a warning if none; requires a project — calendar values work without one), grouped by type |
 | `mindvault_record_feedback` | pinned/hidden/useful/noisy/outdated/wrong/clear — deterministic ranking signals |
 | `mindvault_brain_ops` | One-call brain state: verdict + counts + recommended fixes (no content) |
 | `mindvault_checkpoint_session` | One-line mid-session breadcrumb in the session log (dryRun supported) |
@@ -167,7 +215,7 @@ stderr — check your MCP client's server logs.
 | `mindvault_add_mistake` | Durable lesson with a prevention rule (duplicate + content gated) |
 | `mindvault_list_mistakes` | Active lessons — the do-not-repeat list |
 | `mindvault_resolve_mistake` | Mark a lesson done; it leaves capsules but stays in the ledger |
-| `mindvault_build_route_card` | Read-first ≤5 + do-not-read navigation brief with reasons + token estimates |
+| `mindvault_build_route_card` | Read-first ≤5 + do-not-read navigation brief with reasons + token estimates; `includeSources` for source paths (off by default — items already carry their paths) |
 | `mindvault_build_read_plan` | Strict ordered read plan (max 5) with stop conditions and a single fallback search |
 | `mindvault_get_project_map` | The hub's map block content in one payload — cheapest orientation read |
 | `mindvault_find_low_value_notes` | Notes agents should skip by default, with reasons (guidance only) |

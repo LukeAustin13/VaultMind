@@ -157,10 +157,10 @@ public sealed partial class AgentEvalTests
     public void SessionHandoffIsConciseAndStructured()
     {
         using var tv = new TempVault();
-        var start = tv.Ctx.Sessions.Start("Alpha", "eval run");
+        var start = tv.Ctx.Sessions.StartBrief("Alpha", "eval run");
         tv.Ctx.Sessions.End("Alpha", "hardened the search ranking", "dotnet test green (200)", "watch bm25 weights");
 
-        var log = tv.ReadNote(start.LogNotePath);
+        var log = tv.ReadNote(start.LogNote);
         const string followUps = "- Follow-ups: watch bm25 weights";
         var summaryAt = log.IndexOf("hardened the search ranking", StringComparison.Ordinal);
         Assert.True(summaryAt > 0, "handoff summary must be in the log note");

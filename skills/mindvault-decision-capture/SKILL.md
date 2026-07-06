@@ -62,6 +62,10 @@ linked, with any replaced decision superseded — readable cold in six months.
 - One `mindvault_check_draft`, one create, ~6 short appends — that is the whole budget.
 - Write for a future reader with no session context; a few sentences per section.
 - If the draft check finds the decision already exists, update it and stop.
+- **Timing:** capture a decision mid-session with the standalone tools as above. If it only
+  crystallises right at the close, prefer batching it into `mindvault_end_session`'s
+  `decisions` array (see `mindvault-session-handoff`) — it runs the same duplicate and
+  content gates, saving a separate create call.
 
 ## Safety rules
 

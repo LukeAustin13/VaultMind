@@ -7,23 +7,23 @@ public sealed class SessionTests : IDisposable
     private readonly TempVault _tv = new();
 
     [Fact]
-    public void StartReturnsPackAndCreatesLogNoteOnce()
+    public void StartReturnsBriefAndCreatesLogNoteOnce()
     {
-        var first = _tv.Ctx.Sessions.Start("Alpha", task: "harden search");
+        var first = _tv.Ctx.Sessions.StartBrief("Alpha", task: "harden search");
         Assert.True(first.LogNoteCreated);
-        Assert.Equal("06_Agent_Memory/Log - Alpha.md", first.LogNotePath);
-        Assert.True(File.Exists(_tv.Abs(first.LogNotePath)));
-        Assert.Equal("Alpha", first.Pack.Project);
+        Assert.Equal("06_Agent_Memory/Log - Alpha.md", first.LogNote);
+        Assert.True(File.Exists(_tv.Abs(first.LogNote)));
+        Assert.Equal("Alpha", first.Project);
         Assert.Equal("harden search", first.Task);
 
-        var second = _tv.Ctx.Sessions.Start("Alpha");
+        var second = _tv.Ctx.Sessions.StartBrief("Alpha");
         Assert.False(second.LogNoteCreated);
     }
 
     [Fact]
     public void EndWritesStructuredHandoffEntry()
     {
-        _tv.Ctx.Sessions.Start("Alpha");
+        _tv.Ctx.Sessions.StartBrief("Alpha");
         var result = _tv.Ctx.Sessions.End("Alpha",
             "Shipped weighted search", tests: "dotnet test green (145)", followUps: "tune recency boost");
 
@@ -56,7 +56,7 @@ public sealed class SessionTests : IDisposable
     public void SessionRequiresSummaryAndKnownProject()
     {
         Assert.Throws<MindVaultException>(() => _tv.Ctx.Sessions.End("Alpha", "  "));
-        Assert.Throws<MindVaultException>(() => _tv.Ctx.Sessions.Start("NoSuchProject"));
+        Assert.Throws<MindVaultException>(() => _tv.Ctx.Sessions.StartBrief("NoSuchProject"));
     }
 
     public void Dispose() => _tv.Dispose();

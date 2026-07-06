@@ -6,6 +6,11 @@ constraints and do-not-repeat rules in force, and the next tool calls — all un
 budget. Call it BEFORE a broad search. Deterministic; ambiguous projects return candidates,
 never a guess.
 
+As of 0.8.0 the route card is a **mid-session** navigation tool: `mindvault_start_session`
+returns a budgeted brief that already carries a read-first / do-not-read list, so you rarely
+need a route card at the start. Reach for one when the work moves to a new goal, file or angle
+mid-session and you want a fresh route before a broad search.
+
 ## Inputs
 
 `RouteCardService.Build(project, goal?, currentFile?, query?, budget?)`. The seed comes from
@@ -83,8 +88,12 @@ returns the structured card. Flags: `--goal | --current-file | --query`, `--max-
 ## MCP
 
 `mindvault_build_route_card` (project, goal?, currentFile?, query?, maxNotes?, maxTokens?,
-format?) — `format` is `"json"` (default) or `"markdown"`. Returns `{ routeCard }`,
-`{ markdown }`, or `{ ambiguous, candidates }`.
+format?, includeSources?) — `format` is `"json"` (default) or `"markdown"`. Source paths are
+returned only with `includeSources: true` (off by default; every read-list item already
+carries its own path). Returns `{ routeCard }`, `{ markdown }`, or `{ ambiguous, candidates }`.
+
+When a route leaves genuine gaps, the card's narrowed `mindvault_search` fallback pairs well
+with `snippetChars: 0` (refs-only) — get the candidate paths cheaply, then scope the read.
 
 ## Limitations
 

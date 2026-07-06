@@ -20,6 +20,13 @@ tools instead of raw filesystem access.
   [content risk scanner](docs/SAFETY_SCANNER.md) that refuses secrets, the
   [organisation layer](docs/ORGANISATION.md) (placement proposals, thought promotion,
   generated project map blocks, link intelligence, audits) and a one-call brain-ops rollup.
+- **Built for agents.** Since MindVault's clients are almost entirely AI agents, the session
+  loop is tuned for tokens-per-session: an optional **core tool profile**
+  (`MINDVAULT_TOOL_PROFILE=core`) exposes only the 20 session-loop tools and cuts the
+  per-session tool-schema cost to roughly a third, `mindvault_start_session` returns one
+  budgeted brief instead of a full pack, and `mindvault_end_session` can batch the
+  end-of-session decisions, mistakes and tasks into a single handoff call. See
+  [docs/AGENT_WORKFLOWS.md](docs/AGENT_WORKFLOWS.md).
 - A **SQLite FTS5 index** that is pure, rebuildable cache — your Markdown files stay canonical.
 - A **safety layer**: every mutation snapshots the note first, writes are confined to the vault,
   archive replaces delete, and YAML frontmatter is validated after every write.
@@ -185,10 +192,12 @@ Tools exposed (55): `mindvault_status`, `mindvault_search`, `mindvault_read_note
 `mindvault_build_graph`, `mindvault_explain_relationships`,
 `mindvault_find_low_value_notes`, `mindvault_compile_brain`.
 
-`mindvault_start_session` is the one to reach for first: one call returns the full context
-pack (goal, non-negotiables, task-relevant notes, decisions in force, tasks, risks,
-warnings, recommended next reads) and sets up the session log for the handoff at the end
-(`mindvault_end_session`). See [docs/AGENT_WORKFLOWS.md](docs/AGENT_WORKFLOWS.md).
+`mindvault_start_session` is the one to reach for first: one call returns a budgeted session
+brief (goal, non-negotiables, decisions in force, do-not-repeat rules, open/blocked tasks,
+risks, constraints, a token-priced read-first / do-not-read list, and what changed since your
+last handoff) and sets up the session log for the handoff at the end
+(`mindvault_end_session`, which can batch the session's decisions/mistakes/tasks into the same
+call). See [docs/AGENT_WORKFLOWS.md](docs/AGENT_WORKFLOWS.md).
 
 ## Skills pack (Claude Code workflows)
 

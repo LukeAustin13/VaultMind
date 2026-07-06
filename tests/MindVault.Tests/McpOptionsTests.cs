@@ -17,6 +17,26 @@ public sealed class McpOptionsTests
         Assert.Equal(7777, o.Port);
         Assert.Null(o.AuthToken);
         Assert.False(o.AllowAnonymous);
+        Assert.Equal("full", o.ToolProfile);
+    }
+
+    [Fact]
+    public void ToolProfileComesFromCliOrEnvAndDefaultsToFull()
+    {
+        Assert.Equal("full", McpOptions.Parse([], Env()).ToolProfile);
+        Assert.Equal("core", McpOptions.Parse(["--tool-profile", "core"], Env()).ToolProfile);
+        Assert.Equal("core", McpOptions.Parse([], Env((McpOptions.ToolProfileEnvVar, "core"))).ToolProfile);
+        // CLI wins over env.
+        Assert.Equal("full", McpOptions.Parse(["--tool-profile", "full"],
+            Env((McpOptions.ToolProfileEnvVar, "core"))).ToolProfile);
+    }
+
+    [Fact]
+    public void UnknownToolProfileIsRejected()
+    {
+        var ex = Assert.Throws<MindVaultException>(() =>
+            McpOptions.Parse(["--tool-profile", "minimal"], Env()));
+        Assert.Contains("tool profile", ex.Message);
     }
 
     [Fact]

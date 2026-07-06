@@ -6,12 +6,15 @@ description: Follow a strict, ordered read plan (max 5 reads, explicit stop cond
 # MindVault: Read Plan
 
 The route card is the briefing; the read plan is the itinerary. Follow it literally:
-ordered steps, one purpose per read, and a stop condition that ends the reading.
+ordered steps, one purpose per read, and a stop condition that ends the reading. It is a
+mid-session discipline tool — the `mindvault_start_session` brief already gives a read-first
+list to start from; reach for a plan when a fresh goal needs a strict ordered path.
 
 ## Trigger conditions
 
 Use when:
-- A concrete goal or current file is known and you want the minimum tool-call path.
+- Mid-session, a concrete goal or current file is known and you want the minimum tool-call
+  path.
 - Previous sessions in this repo drifted into 10+ vault reads.
 - You are about to modify code and only need constraints/risks/do-not-repeat rules.
 
@@ -28,7 +31,8 @@ hub's map block first), or anything that writes.
    and start the work.
 4. Honour `doNotRead` for the whole session, not just during the plan.
 5. If the plan's reads genuinely leave the goal unclear, use the plan's single fallback
-   search (already narrowed) — not a fresh vault-wide sweep.
+   search (already narrowed) — not a fresh vault-wide sweep. Run it with `snippetChars: 0`
+   for refs-only hits, then scope the follow-up read.
 
 Expected final behaviour: at most 5 reads, executed in order, ended by a stop condition
 — then real work with the saved context window.

@@ -30,8 +30,7 @@ public sealed class RecallService(VaultContext ctx)
     {
         ctx.Scanner.EnsureFresh();
         var today = DateTime.Today;
-        var cutoff = onThisDay ? DateTime.MinValue : ParseSince(since, today);
-        var window = onThisDay ? $"on this day ({today:MM-dd}) in earlier years" : $"since {cutoff:yyyy-MM-dd}";
+        var handoffWarnings = new List<string>();
 
         string? projectTitle = null;
         string[]? names = null;
@@ -43,6 +42,38 @@ public sealed class RecallService(VaultContext ctx)
             names = ctx.ProjectDetect.QueryNamesFor(proj);
             projId = proj.Id;
         }
+
+        // "last-handoff" windows recall from the project's most recent handoff timestamp; with no
+        // log or no handoff it degrades to the 7-day default and says so in the warnings.
+        DateTime cutoff;
+        if (onThisDay)
+        {
+            cutoff = DateTime.MinValue;
+        }
+        else if (IsLastHandoff(since))
+        {
+            if (projectTitle is null)
+                throw new MindVaultException("since 'last-handoff' needs a project to find the handoff in.");
+            var at = ctx.Sessions.MostRecentHandoffAt(projectTitle);
+            if (at is { } ts)
+            {
+                // Note dates are day-granular; floor to the handoff's date so same-day changes
+                // recorded as a bare date are not silently excluded by the handoff's clock time.
+                cutoff = ts.Date;
+            }
+            else
+            {
+                cutoff = today.AddDays(-7);
+                handoffWarnings.Add(
+                    "No prior handoff found for this project — recall fell back to the last 7 days.");
+            }
+        }
+        else
+        {
+            cutoff = ParseSince(since, today);
+        }
+
+        var window = onThisDay ? $"on this day ({today:MM-dd}) in earlier years" : $"since {cutoff:yyyy-MM-dd}";
 
         var states = ctx.Db.GetFileStates();
         var archiveFolder = ctx.Config.DefaultArchiveFolder;
@@ -85,7 +116,7 @@ public sealed class RecallService(VaultContext ctx)
             groups[GroupKey(note)].Add(item);
         }
 
-        var warnings = new List<string>();
+        var warnings = new List<string>(handoffWarnings);
         if (archivedInWindow > 0)
             warnings.Add($"{archivedInWindow} archived note(s) also changed in this window (excluded by default)");
         foreach (var (key, list) in groups)
@@ -133,6 +164,9 @@ public sealed class RecallService(VaultContext ctx)
             DateTimeStyles.None, out var d)
             ? d
             : null;
+
+    internal static bool IsLastHandoff(string? since) =>
+        string.Equals(since?.Trim(), "last-handoff", StringComparison.OrdinalIgnoreCase);
 
     internal static DateTime ParseSince(string? since, DateTime today)
     {

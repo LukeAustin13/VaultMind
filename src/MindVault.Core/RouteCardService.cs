@@ -37,8 +37,13 @@ public sealed class RouteCardService(VaultContext ctx)
     public const int DefaultReadFirst = 5;
     private const int DoNotReadCap = 8;
 
+    /// <param name="sharedContext">
+    /// A pre-fetched project context to reuse instead of querying again. The session brief passes
+    /// the single ProjectContextResult it already built so route internals do not re-run the same
+    /// query. Must be for the resolved project; null makes the route fetch its own (limit 5).
+    /// </param>
     public RouteCardOutcome Build(string project, string? goal = null, string? currentFile = null,
-        string? query = null, ContextBudget? budget = null)
+        string? query = null, ContextBudget? budget = null, ProjectContextResult? sharedContext = null)
     {
         ctx.Scanner.EnsureFresh();
         var detection = ctx.ProjectDetect.Detect(project);
@@ -82,7 +87,7 @@ public sealed class RouteCardService(VaultContext ctx)
         if (lowValue.Truncated)
             warnings.Add("low-value list truncated — run `mindvault low-value` for the full picture");
 
-        var pc = ctx.Projects.Get(proj.Title, 5);
+        var pc = sharedContext ?? ctx.Projects.Get(proj.Title, 5);
 
         // Seed from exactly one input when given; otherwise the project's own trail.
         WorkContextResult? wc = null;
@@ -287,6 +292,7 @@ public sealed class RouteCardService(VaultContext ctx)
         Notes("Active Tasks", card.ActiveTasks);
         Lines("Suggested Next Tool Calls", card.SuggestedNextToolCalls);
         Lines("Warnings", card.Warnings);
+        Lines("Sources", card.SourcePaths);
         return sb.ToString().Replace("\r\n", "\n");
     }
 }

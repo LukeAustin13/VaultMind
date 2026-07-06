@@ -53,6 +53,10 @@ context, surfacing automatically in every future capsule until deliberately reso
 - One list-check, one add, at most two short appends — a lesson costs four calls.
 - The `lesson` and `prevention` parameters make the note useful at creation; the appends
   are optional depth, not a requirement.
+- **Timing:** record a lesson mid-session with `mindvault_add_mistake` as above. If it only
+  emerges at the close (e.g. from a postmortem while wrapping up), prefer batching it into
+  `mindvault_end_session`'s `mistakes` array (see `mindvault-session-handoff`) — same
+  duplicate and content gates, one fewer call.
 
 ## Safety rules
 
